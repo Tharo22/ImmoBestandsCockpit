@@ -131,6 +131,11 @@ details p { margin: 0 0 8px; }
 textarea { min-height: 110px; resize: vertical; }
 .empty { color: var(--muted); padding: 20px 0; }
 @media (prefers-reduced-motion: no-preference) { .tab { transition: color 0.15s; } }
+.kpi .l { overflow-wrap: anywhere; }
+.fhead { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.kpi .s .pill { margin-left: 4px; }
+details.plan { margin-top: 4px; }
+td.sub, th.sub { color: var(--muted); }
 </style>
 
 </head>
@@ -138,7 +143,7 @@ textarea { min-height: 110px; resize: vertical; }
 <div class="wrap">
   <header>
     <h1>Bestands-Cockpit</h1>
-    <p class="sub">Cashflow, Beleihung und Stresstest für dein Mietportfolio. Alle Werte gelten vor Steuern.</p>
+    <p class="sub">Cashflow, Beleihung und Stresstest für dein Mietportfolio. Rendite und Cashflow gelten vor Steuern, die Steuerwirkung steht gesondert dabei.</p>
   </header>
 
   <div class="banner" id="banner" hidden>Das sind Beispielwerte. Miete, Zins, Hausgeld und das zweite Objekt sind Platzhalter. Trage deine Zahlen im Tab „Objekte“ ein, dann verschwindet dieser Hinweis.</div>
@@ -146,6 +151,7 @@ textarea { min-height: 110px; resize: vertical; }
   <div class="tabs" role="tablist" aria-label="Bereiche">
     <button class="tab" role="tab" id="t-portfolio" aria-controls="p-portfolio" aria-selected="true" data-tab="portfolio">Portfolio</button>
     <button class="tab" role="tab" id="t-szenarien" aria-controls="p-szenarien" aria-selected="false" data-tab="szenarien">Szenarien</button>
+    <button class="tab" role="tab" id="t-finanzierung" aria-controls="p-finanzierung" aria-selected="false" data-tab="finanzierung">Finanzierung</button>
     <button class="tab" role="tab" id="t-objekte" aria-controls="p-objekte" aria-selected="false" data-tab="objekte">Objekte</button>
   </div>
 
@@ -184,6 +190,26 @@ textarea { min-height: 110px; resize: vertical; }
     </div>
   </section>
 
+  <section role="tabpanel" id="p-finanzierung" aria-labelledby="t-finanzierung" hidden>
+    <div class="kpis" id="kpi-fin"></div>
+    <div class="panel">
+      <h2>Zinsbindung und Anschlussfinanzierung</h2>
+      <div class="tscroll" id="tbl-bind"></div>
+      <p class="note" id="bind-note"></p>
+    </div>
+    <div class="cards" id="cards-fin"></div>
+    <details>
+      <summary>Was die Rechnung nicht abbildet</summary>
+      <p class="note">Vorfälligkeitsentschädigung, wenn du ein Darlehen vor Ende der Zinsbindung ablöst oder das Objekt verkaufst.</p>
+      <p class="note">Spekulationssteuer bei einem Verkauf innerhalb von 10 Jahren nach dem Kauf. Beim Verkauf im Exit-Jahr ist keine Steuer angesetzt.</p>
+      <p class="note">Steuerliche Behandlung größerer Sanierungen (Erhaltungsaufwand, anschaffungsnaher Aufwand, Verteilung über mehrere Jahre) und einer Einbauküche. Die Sanierung aus dem Szenario wirkt nur auf den Cashflow, nicht auf die Steuer.</p>
+      <p class="note">Verlustverrechnung: Ist das steuerliche Ergebnis negativ, rechnet das Cockpit mit einer Erstattung zum Grenzsteuersatz. Das setzt anderes Einkommen in passender Höhe voraus.</p>
+      <p class="note">Grenzen bei Mieterhöhungen (Kappungsgrenze, Mietpreisbremse, Indexmiete). Das Mietwachstum ist eine pauschale Annahme.</p>
+      <p class="note">Sonderumlagen der WEG, Beitragserhöhungen beim Hausgeld und die tatsächliche Höhe der Instandhaltungsrücklage.</p>
+      <p class="note">Zinsabsicherung für die Anschlussfinanzierung (Forward-Darlehen), Bereitstellungszinsen und Bearbeitungsgebühren.</p>
+    </details>
+  </section>
+
   <section role="tabpanel" id="p-objekte" aria-labelledby="t-objekte" hidden>
     <details id="impBox" style="border:1px solid rgba(128,128,128,.45);border-radius:12px;padding:10px 14px;margin:0 0 14px">
 <summary style="cursor:pointer;font-weight:600;min-height:28px">Aus Besichtigung übernehmen</summary>
@@ -214,7 +240,8 @@ textarea { min-height: 110px; resize: vertical; }
       <summary>So wird gerechnet</summary>
       <p class="note">Gesamtinvestition = Kaufpreis plus Kaufnebenkosten. Eigenkapital = Gesamtinvestition minus Darlehen. Der Schuldendienst läuft monatlich: Rate = Darlehen × (Sollzins + Anfangstilgung) ÷ 12. Nach Ende der Zinsbindung gilt der Anschlusszins (Sollzins plus Zinsanstieg im Szenario) und die Anschlusstilgung aus den Annahmen, bezogen auf die dann offene Restschuld.</p>
       <p class="note">Cashflow = Kaltmiete nach Leerstand minus nicht umlagefähige Kosten und Instandhaltung minus Schuldendienst minus Sanierung. Nettorendite = Nettomiete nach Kosten ÷ Gesamtinvestition. Eigenkapitalrendite = (Cashflow + Tilgung im ersten Jahr) ÷ Eigenkapital. DSCR = Nettomiete ÷ Schuldendienst. Die interne Verzinsung (IRR) rechnet Eigenkapital, jährliche Cashflows und den Verkaufserlös nach Restschuld und Verkaufskosten im Exit-Jahr.</p>
-      <p class="note">Das ist eine Modellrechnung ohne Steuern und ersetzt keine Steuer- oder Anlageberatung.</p>
+      <p class="note">Sondertilgung läuft am Jahresende und mindert die Restschuld. Sie zählt nicht zum Cashflow, wohl aber zur Verzinsung des Eigenkapitals. Die AfA ergibt sich aus Kaufpreis plus Nebenkosten mal Gebäudeanteil mal AfA-Satz. Steuer = (Kaltmiete nach Leerstand − nicht umlagefähige Kosten − Zinsen − AfA) × Grenzsteuersatz. Die Instandhaltungsrücklage ist nicht abzugsfähig.</p>
+      <p class="note">Das ist eine Modellrechnung und ersetzt keine Steuer- oder Anlageberatung.</p>
     </details>
   </section>
 </div>
@@ -222,8 +249,10 @@ textarea { min-height: 110px; resize: vertical; }
 <script>
 /*ENGINE*/
 function simObj(o, A, S, years) {
-  var g = A.rentG / 100, cg = A.costG / 100, vg = A.valueG / 100;
+  var g = A.rentG / 100, cg = A.costG / 100, vg = A.valueG / 100, tx = (A.grenz || 0) / 100;
   var r0 = o.zins / 100, bal = o.loan, pay = bal * (r0 + o.tilg / 100) / 12, out = [];
+  var afaBasis = o.price * (1 + o.nk / 100) * ((o.geb === undefined ? 80 : o.geb) / 100);
+  var afaMax = afaBasis * ((o.afa === undefined ? 2 : o.afa) / 100), afaCum = 0;
   for (var y = 1; y <= years; y++) {
     var rate = y <= o.fix ? r0 : Math.max(0, r0 + S.dZins / 100);
     if (y === o.fix + 1) pay = bal * (rate + A.anTilg / 100) / 12;
@@ -236,11 +265,17 @@ function simObj(o, A, S, years) {
       if (p > bal) p = bal;
       bal -= p; inte += i; pr += p;
     }
+    var sp = Math.min(bal, Math.max(0, o.sonder || 0));
+    bal -= sp;
     var rent = o.rent * 12 * Math.pow(1 + g, y - 1) * (1 - vac / 100);
-    var opex = (o.nonRec * 12 + o.maint * o.area) * Math.pow(1 + cg, y - 1);
+    var nonRecY = o.nonRec * 12 * Math.pow(1 + cg, y - 1);
+    var opex = nonRecY + o.maint * o.area * Math.pow(1 + cg, y - 1);
     var capex = y === S.capexYear ? S.capex * o.area : 0;
     var ds = inte + pr;
-    out.push({ y: y, rent: rent, opex: opex, int: inte, pr: pr, ds: ds, capex: capex, cf: rent - opex - ds - capex, bal: bal, value: o.price * Math.pow(1 + vg, y) });
+    var afa = Math.min(afaMax, Math.max(0, afaBasis - afaCum)); afaCum += afa;
+    var tax = (rent - nonRecY - inte - afa) * tx;
+    var cf = rent - opex - ds - capex;
+    out.push({ y: y, rent: rent, opex: opex, int: inte, pr: pr, sp: sp, ds: ds, capex: capex, cf: rent - opex - ds - capex, afa: afa, tax: tax, cfAfter: cf - tax, bal: bal, value: o.price * Math.pow(1 + vg, y), rate: rate * 100 });
   }
   return out;
 }
@@ -261,26 +296,32 @@ function evaluate(objs, A, S) {
   var per = objs.map(function (o) {
     var rows = simObj(o, A, S, N), eq = equityOf(o), rh = rows[H - 1];
     var exit = rh.value * (1 - S.exitDisc / 100) * (1 - A.sale / 100) - rh.bal;
-    var flows = [-eq];
-    for (var t = 0; t < H; t++) flows.push(rows[t].cf + (t === H - 1 ? exit : 0));
+    var flows = [-eq], flowsA = [-eq];
+    for (var t = 0; t < H; t++) {
+      var ex = t === H - 1 ? exit : 0;
+      flows.push(rows[t].cf - rows[t].sp + ex);
+      flowsA.push(rows[t].cfAfter - rows[t].sp + ex);
+    }
     var cum = 0, minCum = 0, minCf = Infinity;
     for (var u = 0; u < H; u++) { cum += rows[u].cf; if (cum < minCum) minCum = cum; if (rows[u].cf < minCf) minCf = rows[u].cf; }
-    return { o: o, rows: rows, eq: eq, exit: exit, irr: eq > 0 ? irrOf(flows) : null, need: -minCum, minCf: minCf, cumTotal: cum };
+    return { o: o, rows: rows, eq: eq, exit: exit, irr: eq > 0 ? irrOf(flows) : null, irrAfter: eq > 0 ? irrOf(flowsA) : null, need: -minCum, minCf: minCf, cumTotal: cum };
   });
   var tot = [];
   for (var y = 0; y < N; y++) {
-    var r = { y: y + 1, rent: 0, opex: 0, int: 0, pr: 0, ds: 0, capex: 0, cf: 0, bal: 0, value: 0 };
+    var r = { y: y + 1, rent: 0, opex: 0, int: 0, pr: 0, sp: 0, ds: 0, capex: 0, cf: 0, afa: 0, tax: 0, cfAfter: 0, bal: 0, value: 0 };
     per.forEach(function (p) { for (var k in r) if (k !== 'y') r[k] += p.rows[y][k]; });
     tot.push(r);
   }
   var eqT = per.reduce(function (s, p) { return s + p.eq; }, 0);
   var exitT = per.reduce(function (s, p) { return s + p.exit; }, 0);
-  var fl = [-eqT], cum2 = 0, minCum2 = 0, minCf2 = Infinity;
+  var fl = [-eqT], flA = [-eqT], cum2 = 0, minCum2 = 0, minCf2 = Infinity;
   for (var t2 = 0; t2 < H; t2++) {
-    fl.push(tot[t2].cf + (t2 === H - 1 ? exitT : 0));
+    var ex2 = t2 === H - 1 ? exitT : 0;
+    fl.push(tot[t2].cf - tot[t2].sp + ex2);
+    flA.push(tot[t2].cfAfter - tot[t2].sp + ex2);
     cum2 += tot[t2].cf; if (cum2 < minCum2) minCum2 = cum2; if (tot[t2].cf < minCf2) minCf2 = tot[t2].cf;
   }
-  return { per: per, tot: tot, eq: eqT, exit: exitT, irr: eqT > 0 ? irrOf(fl) : null, need: -minCum2, minCf: minCf2, cumTotal: cum2 };
+  return { per: per, tot: tot, eq: eqT, exit: exitT, irr: eqT > 0 ? irrOf(fl) : null, irrAfter: eqT > 0 ? irrOf(flA) : null, need: -minCum2, minCf: minCf2, cumTotal: cum2 };
 }
 function breakEvenZins(o, A) {
   if (o.loan <= 0) return { k: 'nodebt' };
@@ -296,6 +337,27 @@ function breakEvenZins(o, A) {
   for (var i = 0; i < 50; i++) { var m = (lo + hi) / 2; if (cfAt(m) > 0) lo = m; else hi = m; }
   return { k: 'v', v: o.zins + lo };
 }
+function finInfo(o, A, S) {
+  var rows = simObj(o, A, S0, 50);
+  var fixY = Math.min(Math.max(0, Math.round(o.fix)), 50);
+  var r1 = rows[0], sumInt = 0;
+  for (var i = 0; i < fixY; i++) sumInt += rows[i].int;
+  var balFix = fixY > 0 ? rows[fixY - 1].bal : o.loan;
+  var rateM = o.loan * (o.zins + o.tilg) / 1200;
+  var payAfter0 = balFix * (o.zins / 100 + A.anTilg / 100) / 12;
+  var payAfterS = balFix * (Math.max(0, o.zins + S.dZins) / 100 + A.anTilg / 100) / 12;
+  var payoff = null;
+  if (o.loan > 0) for (var j = 0; j < 50; j++) if (rows[j].bal <= 0.005) { payoff = j + 1; break; }
+  var noi = r1.rent - r1.opex, inv = o.price * (1 + o.nk / 100), eq = Math.max(0, inv - o.loan), gross = o.rent * 12;
+  return {
+    rows: rows, fixY: fixY, rateM: rateM, int1: r1.int, tilg1: r1.pr, sp1: r1.sp, sumInt: sumInt, balFix: balFix,
+    payAfter0: payAfter0, payAfterS: payAfterS, payoff: payoff, eff: Math.pow(1 + o.zins / 1200, 12) - 1,
+    ltv: o.price > 0 ? o.loan / o.price : null, eq: eq, inv: inv, ekq: inv > 0 ? eq / inv : null, noi: noi,
+    icr: r1.int > 0 ? noi / r1.int : null, dscr: r1.ds > 0 ? noi / r1.ds : null, dsq: r1.rent > 0 ? r1.ds / r1.rent : null,
+    dy: o.loan > 0 ? noi / o.loan : null, be: gross > 0 ? (r1.opex + r1.ds) / gross : null,
+    tax1: r1.tax, afa1: r1.afa, cfA: r1.cfAfter
+  };
+}
 /*END*/
 
 (function () {
@@ -303,11 +365,12 @@ function breakEvenZins(o, A) {
   var FIELDS = [
     ['name', 'Bezeichnung', 'text'], ['price', 'Kaufpreis (€)', 1000], ['nk', 'Kaufnebenkosten (%)', 0.1], ['area', 'Wohnfläche (m²)', 1],
     ['loan', 'Darlehen (€)', 1000], ['zins', 'Sollzins (% p.a.)', 0.05], ['tilg', 'Anfangstilgung (% p.a.)', 0.1], ['fix', 'Zinsbindung (Jahre)', 1],
-    ['rent', 'Kaltmiete (€/Monat)', 10], ['nonRec', 'Nicht umlagefähig (€/Monat)', 5], ['maint', 'Instandhaltung (€/m² und Jahr)', 1], ['vac', 'Leerstand (% der Miete)', 0.5]
+    ['rent', 'Kaltmiete (€/Monat)', 10], ['nonRec', 'Nicht umlagefähig (€/Monat)', 5], ['maint', 'Instandhaltung (€/m² und Jahr)', 1], ['vac', 'Leerstand (% der Miete)', 0.5],
+    ['sonder', 'Sondertilgung (€ pro Jahr)', 100], ['geb', 'Gebäudeanteil am Kaufpreis (%)', 1], ['afa', 'AfA-Satz (%)', 0.1]
   ];
   var ASSUME = [
     ['rentG', 'Mietwachstum (% p.a.)', 0.1], ['costG', 'Kostensteigerung (% p.a.)', 0.1], ['valueG', 'Wertentwicklung (% p.a.)', 0.1],
-    ['anTilg', 'Anschlusstilgung (% p.a.)', 0.1], ['sale', 'Verkaufskosten (%)', 0.1], ['horizon', 'Betrachtung und Exit (Jahre)', 1]
+    ['anTilg', 'Anschlusstilgung (% p.a.)', 0.1], ['sale', 'Verkaufskosten (%)', 0.1], ['horizon', 'Betrachtung und Exit (Jahre)', 1], ['grenz', 'Persönlicher Grenzsteuersatz (%)', 0.5]
   ];
   var PRESETS = [
     ['Basis', { dZins: 0, xVac: 0, capex: 0, capexYear: 5, exitDisc: 0 }],
@@ -327,12 +390,12 @@ function breakEvenZins(o, A) {
   function defaults() {
     return {
       example: true,
-      assume: { rentG: 1.5, costG: 2, valueG: 1.5, anTilg: 2, sale: 4, horizon: 15 },
+      assume: { rentG: 1.5, costG: 2, valueG: 1.5, anTilg: 2, sale: 4, horizon: 15, grenz: 42 },
       scen: { dZins: 2, xVac: 5, capex: 200, capexYear: 5, exitDisc: 5 },
       nextId: 3,
       objs: [
-        { id: 1, name: 'Objekt 1', price: 179000, nk: 10.6, area: 62, loan: 143200, zins: 3.6, tilg: 2, fix: 10, rent: 780, nonRec: 70, maint: 12, vac: 2 },
-        { id: 2, name: 'Objekt 2', price: 240000, nk: 10.6, area: 70, loan: 168000, zins: 3.2, tilg: 2, fix: 10, rent: 900, nonRec: 80, maint: 12, vac: 2 }
+        { id: 1, name: 'Objekt 1', price: 179000, nk: 10.6, area: 62, loan: 143200, zins: 3.6, tilg: 2, fix: 10, rent: 780, nonRec: 70, maint: 12, vac: 2, sonder: 0, geb: 80, afa: 2 },
+        { id: 2, name: 'Objekt 2', price: 240000, nk: 10.6, area: 70, loan: 168000, zins: 3.2, tilg: 2, fix: 10, rent: 900, nonRec: 80, maint: 12, vac: 2, sonder: 0, geb: 80, afa: 2 }
       ]
     };
   }
@@ -416,7 +479,7 @@ function breakEvenZins(o, A) {
   function kpiOf(p) {
     var r = p.rows[0], o = p.o, inv = o.price * (1 + o.nk / 100), noi = r.rent - r.opex;
     return {
-      noi: noi, cf: r.cf, ds: r.ds, inv: inv,
+      noi: noi, cf: r.cf, cfAfter: r.cfAfter, tax: r.tax, ds: r.ds, inv: inv,
       net: inv > 0 ? noi / inv : null,
       ekr: p.eq > 0 ? (r.cf + r.pr) / p.eq : null,
       dscr: r.ds > 0 ? noi / r.ds : null
@@ -439,28 +502,87 @@ function breakEvenZins(o, A) {
     var A = state.assume, ev = evaluate(state.objs, A, S0), ks = ev.per.map(kpiOf);
     var sum = function (f) { return ks.reduce(function (s, k) { return s + f(k); }, 0); };
     var noi = sum(function (k) { return k.noi; }), ds = sum(function (k) { return k.ds; }), inv = sum(function (k) { return k.inv; }), cf = sum(function (k) { return k.cf; });
+    var cfA = sum(function (k) { return k.cfAfter; }), tax = sum(function (k) { return k.tax; });
     var pr1 = ev.tot[0].pr, loan = state.objs.reduce(function (s, o) { return s + o.loan; }, 0);
+    var price = state.objs.reduce(function (s, o) { return s + o.price; }, 0), rentY = state.objs.reduce(function (s, o) { return s + o.rent * 12; }, 0);
     var ekr = ev.eq > 0 ? (cf + pr1) / ev.eq : null, dscr = ds > 0 ? noi / ds : null;
     var repaid = loan > 0 ? 1 - ev.tot[9].bal / loan : null;
     $('kpi-portfolio').innerHTML =
-      kpi('Cashflow pro Monat', eur(cf / 12), nf(cf, 0) + ' € pro Jahr', cf < 0) +
+      kpi('Cashflow pro Monat vor Steuern', eur(cf / 12), nf(cf, 0) + ' € pro Jahr', cf < 0) +
+      kpi('Cashflow pro Monat nach Steuern', eur(cfA / 12), (tax >= 0 ? 'Steuer ' : 'Erstattung ') + eur(Math.abs(tax)) + ' pro Jahr', cfA < 0) +
       kpi('Nettorendite', pct(inv > 0 ? noi / inv : null), 'auf ' + eur(inv) + ' Gesamtinvestition') +
       kpi('Eigenkapitalrendite', pct(ekr), 'mit ' + eur(ev.eq) + ' Eigenkapital', ekr !== null && ekr < 0) +
       kpi('DSCR', dscr === null ? '–' : nf(dscr, 2), 'Nettomiete ÷ Schuldendienst', dscr !== null && dscr < 1) +
+      kpi('Beleihungsauslauf', pct(price > 0 ? loan / price : null, 0), 'Darlehen ÷ Kaufpreis') +
+      kpi('Kaufpreisfaktor', rentY > 0 ? nf(price / rentY, 1) + '×' : '–', 'Kaufpreis ÷ Jahreskaltmiete') +
       kpi('Restschuld', eur(ev.tot[0].bal), 'nach Jahr 1, Start ' + eur(loan)) +
-      kpi('Getilgt nach 10 Jahren', pct(repaid, 0), 'Restschuld ' + eur(ev.tot[9].bal));
+      kpi('Getilgt nach 10 Jahren', pct(repaid, 0), 'Restschuld ' + eur(ev.tot[9].bal)) +
+      kpi('Vermögen im Bestand', eur(price - loan), 'Marktwert minus Darlehen, heute');
     var rows = ev.per.map(function (p, i) {
       var k = ks[i], o = p.o;
-      return '<tr><td>' + esc(o.name) + '</td><td>' + eur(o.price) + '</td><td>' + eur(o.rent) + '</td><td class="' + neg(k.cf).trim() + '">' + eur(k.cf / 12) + '</td><td>' + pct(k.net) + '</td><td>' + pct(k.ekr) + '</td><td>' + (k.dscr === null ? '–' : nf(k.dscr, 2)) + '</td><td>' + statusDscr(k.dscr) + '</td></tr>';
+      return '<tr><td>' + esc(o.name) + '</td><td>' + eur(o.price) + '</td><td>' + eur(o.rent) + '</td><td class="' + neg(k.cf).trim() + '">' + eur(k.cf / 12) + '</td><td class="' + neg(k.cfAfter).trim() + '">' + eur(k.cfAfter / 12) + '</td><td>' + pct(k.net) + '</td><td>' + pct(k.ekr) + '</td><td>' + (k.dscr === null ? '–' : nf(k.dscr, 2)) + '</td><td>' + statusDscr(k.dscr) + '</td></tr>';
     }).join('');
-    var totalRow = '<tr class="total"><td>Gesamt</td><td>' + eur(state.objs.reduce(function (s, o) { return s + o.price; }, 0)) + '</td><td>' + eur(state.objs.reduce(function (s, o) { return s + o.rent; }, 0)) + '</td><td class="' + neg(cf).trim() + '">' + eur(cf / 12) + '</td><td>' + pct(inv > 0 ? noi / inv : null) + '</td><td>' + pct(ekr) + '</td><td>' + (dscr === null ? '–' : nf(dscr, 2)) + '</td><td>' + statusDscr(dscr) + '</td></tr>';
-    $('tbl-portfolio').innerHTML = '<table><thead><tr><th>Objekt</th><th>Kaufpreis</th><th>Kaltmiete/Mon.</th><th>Cashflow/Mon.</th><th>Nettorendite</th><th>EK-Rendite</th><th>DSCR</th><th>Status</th></tr></thead><tbody>' + rows + totalRow + '</tbody></table>';
+    var totalRow = '<tr class="total"><td>Gesamt</td><td>' + eur(price) + '</td><td>' + eur(state.objs.reduce(function (s, o) { return s + o.rent; }, 0)) + '</td><td class="' + neg(cf).trim() + '">' + eur(cf / 12) + '</td><td class="' + neg(cfA).trim() + '">' + eur(cfA / 12) + '</td><td>' + pct(inv > 0 ? noi / inv : null) + '</td><td>' + pct(ekr) + '</td><td>' + (dscr === null ? '–' : nf(dscr, 2)) + '</td><td>' + statusDscr(dscr) + '</td></tr>';
+    $('tbl-portfolio').innerHTML = '<table><thead><tr><th>Objekt</th><th>Kaufpreis</th><th>Kaltmiete/Mon.</th><th>Cashflow/Mon.</th><th>CF n. Steuern/Mon.</th><th>Nettorendite</th><th>EK-Rendite</th><th>DSCR</th><th>Status</th></tr></thead><tbody>' + rows + totalRow + '</tbody></table>';
     var H = A.horizon;
-    var val = [state.objs.reduce(function (s, o) { return s + o.price; }, 0)], bal = [loan];
+    var val = [price], bal = [loan];
     for (var t = 0; t < H; t++) { val.push(ev.tot[t].value); bal.push(ev.tot[t].bal); }
     if (tab === 'portfolio') chart($('ch-wealth'), [{ v: val, c: 0 }, { v: bal, c: 2 }], 0, false);
     var eqBuild = val[H] - bal[H];
-    $('wealth-note').textContent = 'Nach ' + H + ' Jahren liegt der Marktwert bei ' + eur(val[H]) + ' und die Restschuld bei ' + eur(bal[H]) + '. Der Abstand von ' + eur(eqBuild) + ' ist dein Vermögen im Bestand vor Verkaufskosten. Angaben in Tausend Euro.';
+    $('wealth-note').textContent = 'Nach ' + H + ' Jahren liegt der Marktwert bei ' + eur(val[H]) + ' und die Restschuld bei ' + eur(bal[H]) + '. Der Abstand von ' + eur(eqBuild) + ' ist dein Vermögen im Bestand vor Verkaufskosten. Verzinsung des Eigenkapitals über ' + H + ' Jahre inklusive Verkauf: ' + pct(ev.irr) + ' vor und ' + pct(ev.irrAfter) + ' nach Steuern. Angaben in Tausend Euro.';
+  }
+
+  function pillOf(cls, txt) { return '<span class="pill ' + cls + '">' + txt + '</span>'; }
+  function ltvPill(v) { return v === null ? '' : v <= 0.6 ? pillOf('good', 'Komfortabel') : v <= 0.8 ? pillOf('warn', 'Üblich') : pillOf('bad', 'Hoch'); }
+  function icrPill(v) { return v === null ? '' : v >= 1.5 ? pillOf('good', 'Solide') : v >= 1.2 ? pillOf('warn', 'Knapp') : pillOf('bad', 'Zu niedrig'); }
+  function bePill(v) { return v === null ? '' : v <= 0.85 ? pillOf('good', 'Viel Puffer') : v <= 0.95 ? pillOf('warn', 'Wenig Puffer') : pillOf('bad', 'Kaum Puffer'); }
+
+  function renderFinanz() {
+    var A = state.assume, S = state.scen, y0 = new Date().getFullYear();
+    var inf = state.objs.map(function (o) { return { o: o, f: finInfo(o, A, S) }; });
+    var sum = function (fn) { return inf.reduce(function (s, x) { return s + fn(x); }, 0); };
+    var loan = sum(function (x) { return x.o.loan; }), price = sum(function (x) { return x.o.price; }), invT = sum(function (x) { return x.f.inv; });
+    var wz = loan > 0 ? sum(function (x) { return x.o.loan * x.o.zins; }) / loan : 0;
+    var rate = sum(function (x) { return x.f.rateM; }), int1 = sum(function (x) { return x.f.int1; }), til1 = sum(function (x) { return x.f.tilg1; }), sp1 = sum(function (x) { return x.f.sp1; });
+    $('kpi-fin').innerHTML =
+      kpi('Darlehen gesamt', eur(loan), 'auf ' + inf.length + ' Objekt' + (inf.length === 1 ? '' : 'e')) +
+      kpi('Ø Sollzins', nf(wz, 2) + ' %', 'gewichtet nach Darlehen') +
+      kpi('Raten pro Monat', eur(rate), eur(rate * 12) + ' pro Jahr') +
+      kpi('Zinsen im 1. Jahr', eur(int1), 'Tilgung ' + eur(til1) + (sp1 > 0 ? ' plus Sondertilgung ' + eur(sp1) : '')) +
+      kpi('Beleihungsauslauf', pct(price > 0 ? loan / price : null, 0), 'Darlehen ÷ Kaufpreis') +
+      kpi('Eigenkapitalquote', pct(invT > 0 ? Math.max(0, 1 - loan / invT) : null, 0), 'Eigenkapital ÷ Gesamtinvestition');
+
+    var byFix = inf.slice().sort(function (a, b) { return a.o.fix - b.o.fix; });
+    var brow = byFix.map(function (x) {
+      var o = x.o, f = x.f, more = f.payAfterS - f.rateM;
+      return '<tr><td>' + esc(o.name) + '</td><td>' + (f.fixY >= 1 ? (y0 + f.fixY) + ' (in ' + f.fixY + ' J.)' : 'jetzt') + '</td><td>' + eur(f.balFix) + '</td><td>' + eur(f.rateM) + '</td><td>' + eur(f.payAfter0) + '</td><td>' + eur(f.payAfterS) + '</td><td class="' + (more > 0.5 ? 'neg' : '') + '">' + (more >= 0 ? '+' : '−') + eur(Math.abs(more)) + '</td></tr>';
+    }).join('');
+    $('tbl-bind').innerHTML = '<table><thead><tr><th>Objekt</th><th>Zinsbindung endet</th><th>Restschuld dann</th><th>Rate heute</th><th>Rate danach, Zins gleich</th><th>Rate danach, Szenario-Zins</th><th>Veränderung pro Monat</th></tr></thead><tbody>' + brow + '</tbody></table>';
+    $('bind-note').textContent = 'Raten pro Monat. Nach der Zinsbindung gilt die Anschlusstilgung von ' + nf(A.anTilg, 2) + ' % auf die Restschuld. Das Szenario setzt den Zins um ' + nf(S.dZins, 2) + ' Prozentpunkte höher an (Reiter Szenarien). Die Veränderung vergleicht die Rate im Szenario mit der Rate heute.';
+
+    $('cards-fin').innerHTML = inf.map(function (x) {
+      var o = x.o, f = x.f, N = Math.min(f.payoff || 30, 35);
+      var plan = f.rows.slice(0, N).map(function (r) {
+        return '<tr><td>' + r.y + '</td><td>' + nf(r.rate, 2) + ' %</td><td>' + eur(r.int) + '</td><td>' + eur(r.pr) + '</td><td>' + eur(r.sp) + '</td><td>' + eur(r.bal) + '</td></tr>';
+      }).join('');
+      return '<div class="panel"><div class="fhead"><h2>' + esc(o.name) + '</h2>' + statusDscr(f.dscr) + '</div><div class="kpis">' +
+        kpi('Rate pro Monat', eur(f.rateM), 'Zinsen ' + eur(f.int1 / 12) + ' · Tilgung ' + eur(f.tilg1 / 12) + ' (Jahr 1)') +
+        kpi('Sollzins', nf(o.zins, 2) + ' %', 'effektiv ' + nf(f.eff * 100, 2) + ' % p. a.') +
+        kpi('Zinsbindung endet', f.fixY >= 1 ? String(y0 + f.fixY) : 'jetzt', 'in ' + f.fixY + ' Jahren') +
+        kpi('Restschuld nach Bindung', eur(f.balFix), pct(o.loan > 0 ? f.balFix / o.loan : null, 0) + ' des Darlehens') +
+        kpi('Zinsen in der Bindung', eur(f.sumInt), 'Summe über ' + f.fixY + ' Jahre') +
+        kpi('Rate nach Anschluss', eur(f.payAfter0), 'im Szenario ' + eur(f.payAfterS)) +
+        kpi('Volltilgung', f.payoff ? 'nach ca. ' + f.payoff + ' J.' : (o.loan > 0 ? 'über 50 J.' : 'schuldenfrei'), 'Sondertilgung ' + eur(o.sonder || 0) + ' pro Jahr') +
+        kpi('Beleihungsauslauf', pct(f.ltv, 0), ltvPill(f.ltv)) +
+        kpi('Eigenkapitalquote', pct(f.ekq, 0), 'Eigenkapital ' + eur(f.eq)) +
+        kpi('Zinsdeckung', f.icr === null ? '–' : nf(f.icr, 2), 'Nettomiete ÷ Zinsen ' + icrPill(f.icr)) +
+        kpi('DSCR', f.dscr === null ? '–' : nf(f.dscr, 2), 'Nettomiete ÷ Schuldendienst', f.dscr !== null && f.dscr < 1) +
+        kpi('Schuldendienstquote', pct(f.dsq, 0), 'Anteil der Miete für die Bank') +
+        kpi('Debt Yield', pct(f.dy, 1), 'Nettomiete ÷ Darlehen') +
+        kpi('Mindestauslastung', pct(f.be, 0), 'Anteil der Sollmiete, ab dem der Cashflow null ist ' + bePill(f.be)) +
+        kpi('Steuer im 1. Jahr', eur(f.tax1), 'AfA ' + eur(f.afa1) + ' · Cashflow n. St. ' + eur(f.cfA / 12) + ' pro Monat') +
+        '</div><details class="plan"><summary>Tilgungsplan, jährlich</summary><div class="tscroll"><table><thead><tr><th>Jahr</th><th>Zinssatz</th><th>Zinsen</th><th>Tilgung</th><th>Sondertilgung</th><th>Restschuld</th></tr></thead><tbody>' + plan + '</tbody></table></div><p class="note">Basisfall: Der Zins bleibt nach der Bindung unverändert.</p></details></div>';
+    }).join('');
   }
 
   function renderScenarioControls() {
@@ -512,6 +634,7 @@ function breakEvenZins(o, A) {
     renderBanner();
     renderPortfolio();
     renderScenarios();
+    if (tab === 'finanzierung') renderFinanz();
     $('backup').value = JSON.stringify(state);
   }
 
@@ -569,7 +692,7 @@ function breakEvenZins(o, A) {
       state.example = false; save(); renderInputs(); renderOutputs(); return;
     }
     if (b.id === 'add') {
-      state.objs.push({ id: state.nextId++, name: 'Neues Objekt', price: 200000, nk: 10.6, area: 60, loan: 160000, zins: 3.6, tilg: 2, fix: 10, rent: 800, nonRec: 60, maint: 12, vac: 2 });
+      state.objs.push({ id: state.nextId++, name: 'Neues Objekt', price: 200000, nk: 10.6, area: 60, loan: 160000, zins: 3.6, tilg: 2, fix: 10, rent: 800, nonRec: 60, maint: 12, vac: 2, sonder: 0, geb: 80, afa: 2 });
       state.example = false; save(); renderInputs(); renderOutputs(); return;
     }
     if (b.id === 'b-copy') {
@@ -596,7 +719,7 @@ function breakEvenZins(o, A) {
 
   function show(name) {
     tab = name;
-    ['portfolio', 'szenarien', 'objekte'].forEach(function (n) {
+    ['portfolio', 'szenarien', 'finanzierung', 'objekte'].forEach(function (n) {
       $('p-' + n).hidden = n !== name;
       $('t-' + n).setAttribute('aria-selected', String(n === name));
     });
@@ -613,7 +736,7 @@ function breakEvenZins(o, A) {
 function applyTransfer(p){
   const n=v=>isFinite(+v)?+v:0;
   const o={id:state.nextId++,name:p.name||'Neues Objekt',price:n(p.kp),nk:n(p.nkPct)||10.6,area:n(p.qm),loan:Math.round(n(p.kp)*0.9),zins:3.6,tilg:2,fix:10,
-    rent:n(p.kalt)+n(p.stell),nonRec:n(p.hgNicht),maint:12,vac:2};
+    rent:n(p.kalt)+n(p.stell),nonRec:n(p.hgNicht),maint:12,vac:2,sonder:0,geb:80,afa:n(p.bj)>0&&n(p.bj)<1925?2.5:(n(p.bj)>=2023?3:2)};
   if(state.example) state.objs=[o]; else state.objs.push(o);
   state.example=false; save(); renderInputs(); renderOutputs(); show('objekte');
   return 'Objekt „'+esc(o.name)+'“ angelegt. Darlehen (90 %), Zins und Tilgung sind Annahmen. Bitte anpassen.';
