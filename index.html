@@ -17,6 +17,18 @@
 
 :root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 body{margin:0}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}
+/*VIZ*/
+:root{--c1:#2a78d6;--c2:#eb6834;--c3:#1baf7a;--neutral:#8a857d}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--c1:#3987e5;--c2:#d95926;--c3:#199e70;--neutral:#8f8a82}}
+:root[data-theme="dark"]{--c1:#3987e5;--c2:#d95926;--c3:#199e70;--neutral:#8f8a82}
+.vz2{display:grid;grid-template-columns:1fr;gap:18px}
+@media(min-width:760px){.vz2{grid-template-columns:1fr 1.4fr}}
+.vz svg{display:block;width:100%;height:auto;overflow:visible}
+.vz text{font-family:var(--font-body);fill:var(--muted);font-size:11px}
+.vz .ink{fill:var(--ink)} .vz .nm{font-family:var(--font-num);font-variant-numeric:tabular-nums}
+.vrow{display:grid;grid-template-columns:14px minmax(0,1fr) auto auto;gap:8px;align-items:center;padding:7px 0;border-top:1px solid var(--line);font-size:.9rem}
+.vrow i{width:10px;height:10px;border-radius:3px;display:block}.vrow b{font-family:var(--font-num);font-weight:600}.vrow span.p{font-family:var(--font-num);color:var(--muted);font-size:.8rem}
+/*ENDVIZ*/
 </style>
 <title>Bestands-Cockpit</title>
 <style>
@@ -158,6 +170,7 @@ td.sub, th.sub { color: var(--muted); }
 
   <section role="tabpanel" id="p-portfolio" aria-labelledby="t-portfolio">
     <div class="kpis" id="kpi-portfolio"></div>
+    <div class="panel vz" id="viz-portfolio"></div>
     <div class="panel">
       <h2>Objekte im Überblick</h2>
       <div class="tscroll" id="tbl-portfolio"></div>
@@ -499,6 +512,39 @@ function finInfo(o, A, S) {
   }
   function kpi(l, v, s, isNeg) { return '<div class="kpi"><span class="l">' + l + '</span><span class="v' + (isNeg ? ' neg' : '') + '">' + v + '</span><span class="s">' + s + '</span></div>'; }
 
+
+  function vizPortfolio(ev, ks, inv, loan) {
+    var rent = ev.per.reduce(function (a, p) { return a + p.rows[0].rent; }, 0), opex = ev.per.reduce(function (a, p) { return a + p.rows[0].opex; }, 0);
+    var noi = ks.reduce(function (a, k) { return a + k.noi; }, 0), ds = ks.reduce(function (a, k) { return a + k.ds; }, 0), cf = ks.reduce(function (a, k) { return a + k.cf; }, 0), tax = ks.reduce(function (a, k) { return a + k.tax; }, 0), cfA = ks.reduce(function (a, k) { return a + k.cfAfter; }, 0);
+    var eq = Math.max(0, inv - loan), tot = loan + eq, svgD = '', C = [['Darlehen', loan, 'var(--c1)'], ['Eigenkapital', eq, 'var(--c3)']];
+    var a0 = -Math.PI / 2;
+    C.forEach(function (c) {
+      var da = tot > 0 ? c[1] / tot * Math.PI * 2 : 0; if (da <= 0) return;
+      var a1 = a0 + da - 0.02, x0 = 80 + 58 * Math.cos(a0), y0 = 80 + 58 * Math.sin(a0), x1 = 80 + 58 * Math.cos(Math.max(a0 + .01, a1)), y1 = 80 + 58 * Math.sin(Math.max(a0 + .01, a1));
+      svgD += '<path d="M' + x0.toFixed(1) + ' ' + y0.toFixed(1) + 'A58 58 0 ' + (da > Math.PI ? 1 : 0) + ' 1 ' + x1.toFixed(1) + ' ' + y1.toFixed(1) + '" fill="none" stroke="' + c[2] + '" stroke-width="22"><title>' + c[0] + ': ' + eur(c[1]) + '</title></path>'; a0 += da;
+    });
+    var donut = '<div><h2>Kapitalstruktur</h2><svg viewBox="0 0 160 160" style="max-width:220px;margin:8px auto" role="img" aria-label="Gesamtinvestition ' + eur(tot) + ': Darlehen ' + nf(tot > 0 ? loan / tot * 100 : 0, 0) + ' Prozent, Eigenkapital ' + nf(tot > 0 ? eq / tot * 100 : 0, 0) + ' Prozent">' + svgD + '<text x="80" y="77" text-anchor="middle" class="ink nm" style="font-size:15px;font-weight:600">' + eur(tot) + '</text><text x="80" y="94" text-anchor="middle" style="font-size:10px">Gesamtinvestition</text></svg>' +
+      C.map(function (c) { return '<div class="vrow"><i style="background:' + c[2] + '"></i><span>' + c[0] + '</span><b>' + eur(c[1]) + '</b><span class="p">' + nf(tot > 0 ? c[1] / tot * 100 : 0, 0) + ' %</span></div>'; }).join('') + '</div>';
+    // Wasserfall
+    var steps = [['Miete', rent, 't'], ['Kosten', -opex, 'd'], ['Netto', noi, 'T'], ['Kredit', -ds, 'd'], ['Cashflow', cf, 'T'], [tax >= 0 ? 'Steuer' : 'Erstattung', -tax, 'd'], ['Nach St.', cfA, 'T']];
+    var W = 380, H = 220, pl = 6, pr = 6, pt = 20, pb = 28, lo = 0, hi = 0, run = 0, pos = [];
+    steps.forEach(function (st) { var a, b; if (st[2] === 'd') { a = run; b = run + st[1]; run = b; } else { a = 0; b = st[1]; run = st[1]; } pos.push([a, b]); lo = Math.min(lo, a, b); hi = Math.max(hi, a, b); });
+    var pad = (hi - lo) * 0.08 || 1; lo = Math.min(lo, 0) - (lo < 0 ? pad : 0); hi += pad;
+    var Y = function (v) { return pt + (H - pt - pb) * (1 - (v - lo) / (hi - lo)); }, cw = (W - pl - pr) / steps.length, bw = cw * 0.64, g = '<line x1="' + pl + '" x2="' + (W - pr) + '" y1="' + Y(0) + '" y2="' + Y(0) + '" stroke="var(--line)" stroke-width="1.5"/>';
+    steps.forEach(function (st, i) {
+      var a = pos[i][0], b = pos[i][1], top = Math.min(a, b), bot = Math.max(a, b), x = pl + cw * i + (cw - bw) / 2, h = Math.max(2, Y(top) - Y(bot) < 0 ? Y(bot) - Y(top) : Y(bot) - Y(top));
+      var col = st[2] === 'T' ? 'var(--c1)' : (st[1] < 0 ? 'var(--c2)' : 'var(--c3)');
+      g += '<rect x="' + x.toFixed(1) + '" y="' + Y(bot).toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + Math.max(2, Y(top) - Y(bot)).toFixed(1) + '" rx="3" fill="' + col + '"><title>' + st[0] + ': ' + (st[1] >= 0 ? '+' : '−') + eur(Math.abs(st[1])) + ' pro Jahr</title></rect>';
+      var ty = st[1] >= 0 || st[2] === 'T' ? Y(bot) - 4 : Y(top) + 12; if (st[2] === 'T' && st[1] < 0) ty = Y(top) + 12;
+      g += '<text x="' + (x + bw / 2).toFixed(1) + '" y="' + ty.toFixed(1) + '" text-anchor="middle" class="ink nm" style="font-size:10px;font-weight:600">' + (Math.abs(st[1]) < 50 ? '0' : (st[1] < 0 ? '−' : (st[2] === 'd' ? '+' : '')) + fmtK(Math.abs(st[1])).replace(' k', 'k')) + '</text>';
+      g += '<text x="' + (x + bw / 2).toFixed(1) + '" y="' + (H - 9) + '" text-anchor="middle" style="font-size:10px">' + st[0] + '</text>';
+      if (i < steps.length - 1) { var lv = pos[i][1]; g += '<line x1="' + (x + bw).toFixed(1) + '" x2="' + (x + cw).toFixed(1) + '" y1="' + Y(lv).toFixed(1) + '" y2="' + Y(lv).toFixed(1) + '" stroke="var(--muted)" stroke-width=".7" stroke-dasharray="2 2"/>'; }
+    });
+    var wf = '<div><h2>Von der Miete zum Cashflow</h2><svg viewBox="0 0 ' + W + ' ' + H + '" style="margin-top:8px" role="img" aria-label="Pro Jahr: Miete ' + eur(rent) + ', Kosten ' + eur(opex) + ', Netto ' + eur(noi) + ', Kreditrate ' + eur(ds) + ', Cashflow vor Steuern ' + eur(cf) + ', nach Steuern ' + eur(cfA) + '">' + g + '</svg>' +
+      '<p class="note">Pro Jahr in Tausend Euro. Blau sind Zwischensummen, Orange Abflüsse, Grün Zuflüsse. Die Kreditrate enthält die Tilgung.</p></div>';
+    $('viz-portfolio').innerHTML = '<div class="vz2">' + donut + wf + '</div>';
+  }
+
   function renderPortfolio() {
     var A = state.assume, ev = evaluate(state.objs, A, S0), ks = ev.per.map(kpiOf);
     var sum = function (f) { return ks.reduce(function (s, k) { return s + f(k); }, 0); };
@@ -519,6 +565,7 @@ function finInfo(o, A, S) {
       kpi('Restschuld', eur(ev.tot[0].bal), 'nach Jahr 1, Start ' + eur(loan)) +
       kpi('Getilgt nach 10 Jahren', pct(repaid, 0), 'Restschuld ' + eur(ev.tot[9].bal)) +
       kpi('Vermögen im Bestand', eur(price - loan), 'Marktwert minus Darlehen, heute');
+    vizPortfolio(ev, ks, inv, loan);
     var rows = ev.per.map(function (p, i) {
       var k = ks[i], o = p.o;
       return '<tr><td>' + esc(o.name) + '</td><td>' + eur(o.price) + '</td><td>' + eur(o.rent) + '</td><td class="' + neg(k.cf).trim() + '">' + eur(k.cf / 12) + '</td><td class="' + neg(k.cfAfter).trim() + '">' + eur(k.cfAfter / 12) + '</td><td>' + pct(k.net) + '</td><td>' + pct(k.ekr) + '</td><td>' + (k.dscr === null ? '–' : nf(k.dscr, 2)) + '</td><td>' + statusDscr(k.dscr) + '</td></tr>';
