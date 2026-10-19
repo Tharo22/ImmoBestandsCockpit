@@ -249,7 +249,8 @@ td.sub, th.sub { color: var(--muted); }
       <div class="fields" id="assume"></div>
     </div>
     <div class="cards" id="cards"></div>
-    <div><button class="btn primary" id="add">Objekt hinzufügen</button></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" id="add">Objekt hinzufügen</button><button class="btn" id="icsBtn" type="button">Zinsbindungen in den Kalender (.ics)</button></div>
+    <p class="note" id="icsMsg" aria-live="polite"></p>
     <details>
       <summary>Daten sichern und wiederherstellen</summary>
       <p class="note">Deine Eingaben liegen nur in diesem Browser. Kopiere den Text und bewahre ihn irgendwo auf, um ihn später hier wieder einzufügen.</p>
@@ -394,7 +395,7 @@ function finInfo(o, A, S) {
     ['loan', 'Darlehen (€)', 1000], ['zins', 'Sollzins (% p.a.)', 0.05], ['tilg', 'Anfangstilgung (% p.a.)', 0.1], ['fix', 'Zinsbindung (Jahre)', 1],
     ['rent', 'Kaltmiete (€/Monat)', 10], ['nonRec', 'Nicht umlagefähig (€/Monat)', 5], ['maint', 'Instandhaltung (€/m² und Jahr)', 1], ['vac', 'Leerstand (% der Miete)', 0.5],
     ['sonder', 'Sondertilgung (€ pro Jahr)', 100], ['geb', 'Gebäudeanteil am Kaufpreis (%)', 1], ['afa', 'AfA-Satz (%)', 0.1],
-    ['reno', 'Renovierung und Sanierung (€)', 1000], ['renoYear', 'Renovierung im Jahr (0 = beim Kauf)', 1], ['renoRent', 'Mehrmiete danach (€/Monat)', 10]
+    ['fixEnd', 'Zinsbindung endet am (optional)', 'date'], ['reno', 'Renovierung und Sanierung (€)', 1000], ['renoYear', 'Renovierung im Jahr (0 = beim Kauf)', 1], ['renoRent', 'Mehrmiete danach (€/Monat)', 10]
   ];
   var ASSUME = [
     ['rentG', 'Mietwachstum (% p.a.)', 0.1], ['costG', 'Kostensteigerung (% p.a.)', 0.1], ['valueG', 'Wertentwicklung (% p.a.)', 0.1],
@@ -453,7 +454,7 @@ function finInfo(o, A, S) {
     s.objs = s.objs.map(function (o, i) {
       var r = Object.assign({}, d.objs[0], o);
       r.id = o.id || i + 1;
-      FIELDS.forEach(function (f) { if (f[2] !== 'text') r[f[0]] = Number(r[f[0]]) || 0; });
+      FIELDS.forEach(function (f) { if (f[2] === 'date') r[f[0]] = /^\d{4}-\d{2}-\d{2}$/.test(r[f[0]] || '') ? r[f[0]] : ''; else if (f[2] !== 'text') r[f[0]] = Number(r[f[0]]) || 0; });
       return r;
     });
     s.nextId = Math.max.apply(null, s.objs.map(function (o) { return o.id; })) + 1;
@@ -705,7 +706,7 @@ function finInfo(o, A, S) {
   /* ---------- Eingaben ---------- */
   function fieldHtml(scope, oid, f, val) {
     var id = scope + (oid ? '-' + oid : '') + '-' + f[0];
-    var type = f[2] === 'text' ? 'text' : 'number';
+    var type = f[2] === 'text' ? 'text' : (f[2] === 'date' ? 'date' : 'number');
     var extra = type === 'number' ? ' step="any" inputmode="decimal"' : '';
     return '<label class="fld" for="' + id + '">' + f[1] + '<input id="' + id + '" type="' + type + '"' + extra + ' data-scope="' + scope + '"' + (oid ? ' data-oid="' + oid + '"' : '') + ' data-key="' + f[0] + '" value="' + esc(val) + '"></label>';
   }
@@ -726,7 +727,7 @@ function finInfo(o, A, S) {
     var t = e.target, scope = t.getAttribute && t.getAttribute('data-scope');
     if (!scope) return;
     var key = t.getAttribute('data-key');
-    var val = t.type === 'text' ? t.value : (parseFloat(t.value) || 0);
+    var val = (t.type === 'text' || t.type === 'date') ? t.value : (parseFloat(t.value) || 0);
     if (scope === 'obj') {
       var o = state.objs.filter(function (x) { return String(x.id) === t.getAttribute('data-oid'); })[0];
       if (!o) return;
@@ -855,6 +856,31 @@ function renRun(){
   return true;
 }
 document.getElementById('renBtn').addEventListener('click',renRun);
+
+
+/* ---- Kalender-Export ---- */
+function icsMake(items){
+  const esc=t=>String(t||'').replace(/\\/g,'\\\\').replace(/\n/g,'\\n').replace(/,/g,'\\,').replace(/;/g,'\;');
+  const p2=n=>String(n).padStart(2,'0'), stamp=new Date().toISOString().replace(/[-:]/g,'').replace(/\.\d+/,'');
+  const L=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Immobilien Cockpit//DE','CALSCALE:GREGORIAN','METHOD:PUBLISH'];
+  items.forEach(it=>{ const n=new Date(it.date+'T12:00:00'); n.setDate(n.getDate()+1);
+    L.push('BEGIN:VEVENT','UID:'+it.uid+'@immobilien-apps','DTSTAMP:'+stamp,'DTSTART;VALUE=DATE:'+it.date.replace(/-/g,''),'DTEND;VALUE=DATE:'+n.getFullYear()+p2(n.getMonth()+1)+p2(n.getDate()),'SUMMARY:'+esc(it.t),'DESCRIPTION:'+esc(it.sub),'BEGIN:VALARM','ACTION:DISPLAY','DESCRIPTION:'+esc(it.t),'TRIGGER:-P'+it.warn+'D','END:VALARM','END:VEVENT'); });
+  L.push('END:VCALENDAR'); return L.join('\r\n')+'\r\n';
+}
+async function icsSave(name,text){
+  const blob=new Blob([text],{type:'text/calendar'});
+  try{ const f=new File([blob],name,{type:'text/calendar'}); if(navigator.canShare&&navigator.canShare({files:[f]})){ await navigator.share({files:[f],title:name}); return; } }catch(e){ if(e&&e.name==='AbortError') return; }
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },1500);
+}
+document.getElementById('icsBtn').addEventListener('click',()=>{
+  const td=new Date().toISOString().slice(0,10), items=[], m=document.getElementById('icsMsg');
+  state.objs.forEach(o=>{ if(!/^\d{4}-\d{2}-\d{2}$/.test(o.fixEnd||'')||o.fixEnd<td) return;
+    items.push({uid:'cp-fix-'+o.id+'-'+o.fixEnd,date:o.fixEnd,t:'Zinsbindung endet: '+o.name,sub:'Darlehen '+eur(o.loan)+', Anschlussfinanzierung muss stehen.',warn:90});
+    const d=new Date(o.fixEnd+'T12:00:00'); d.setFullYear(d.getFullYear()-1); const pre=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    if(pre>=td) items.push({uid:'cp-pre-'+o.id+'-'+pre,date:pre,t:'Anschlussfinanzierung anfragen: '+o.name,sub:'Ein Jahr vor Ende der Zinsbindung Angebote einholen. Forward-Darlehen prüfen.',warn:14}); });
+  if(!items.length){ m.textContent='Trage am Objekt ein Datum bei „Zinsbindung endet am“ ein. Dann entstehen Termine.'; return; }
+  icsSave('cockpit-zinsbindung.ics',icsMake(items)).then(()=>{ m.textContent=items.length+' Termine bereit. Öffne die Datei, um sie im Kalender zu speichern.'; });
+});
 
 /* ---- Übernahme aus der Besichtigungs-App ---- */
 function parseTransfer(text){
