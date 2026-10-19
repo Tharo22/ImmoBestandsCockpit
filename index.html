@@ -225,6 +225,17 @@ td.sub, th.sub { color: var(--muted); }
   </section>
 
   <section role="tabpanel" id="p-objekte" aria-labelledby="t-objekte" hidden>
+    <details id="renBox" style="border:1px solid rgba(128,128,128,.45);border-radius:12px;padding:10px 14px;margin:0 0 14px">
+<summary style="cursor:pointer;font-weight:600;min-height:28px">Renovierungskosten aus der Renovierungs-App übernehmen</summary>
+<p style="margin:8px 0;font-size:13px;opacity:.8">Du kannst die Kosten auch direkt am Objekt von Hand eintragen. Hier holst du sie aus einem Projekt der Renovierungs-App. Übernommen werden die Kosten nach Förderung und die Mehrmiete aus Umlage oder Neuvermietung.</p>
+<div id="renLocal"></div>
+<label style="display:block;font-size:13px;margin-top:8px">Oder Übergabecode einfügen</label>
+<textarea id="renText" aria-label="Übergabecode Renovierung" placeholder="RENOVIERUNG:..." style="width:100%;min-height:60px;font:inherit;font-size:16px;color:inherit;background:rgba(128,128,128,.1);border:1px solid rgba(128,128,128,.4);border-radius:8px;padding:8px"></textarea>
+<label style="display:block;font-size:13px;margin-top:8px">Für dieses Objekt</label>
+<select id="renObj" aria-label="Objekt wählen" style="width:100%;min-height:42px;font:inherit;font-size:16px;color:inherit;background:rgba(128,128,128,.1);border:1px solid rgba(128,128,128,.4);border-radius:8px;padding:0 8px"></select>
+<button id="renBtn" type="button" style="margin-top:8px;min-height:42px;padding:0 16px;font:inherit;font-weight:600;border:1px solid currentColor;border-radius:10px;background:transparent;color:inherit">Übernehmen</button>
+<div id="renMsg" role="status" style="margin-top:8px;font-size:13px"></div>
+</details>
     <details id="impBox" style="border:1px solid rgba(128,128,128,.45);border-radius:12px;padding:10px 14px;margin:0 0 14px">
 <summary style="cursor:pointer;font-weight:600;min-height:28px">Aus Besichtigung übernehmen</summary>
 <p style="margin:8px 0;font-size:13px;opacity:.8">Füge den Übergabecode aus der Besichtigungs-App ein. Wenn du über den Link aus der Besichtigung kommst, sind die Werte schon eingetragen.</p>
@@ -255,6 +266,7 @@ td.sub, th.sub { color: var(--muted); }
       <p class="note">Gesamtinvestition = Kaufpreis plus Kaufnebenkosten. Eigenkapital = Gesamtinvestition minus Darlehen. Der Schuldendienst läuft monatlich: Rate = Darlehen × (Sollzins + Anfangstilgung) ÷ 12. Nach Ende der Zinsbindung gilt der Anschlusszins (Sollzins plus Zinsanstieg im Szenario) und die Anschlusstilgung aus den Annahmen, bezogen auf die dann offene Restschuld.</p>
       <p class="note">Cashflow = Kaltmiete nach Leerstand minus nicht umlagefähige Kosten und Instandhaltung minus Schuldendienst minus Sanierung. Nettorendite = Nettomiete nach Kosten ÷ Gesamtinvestition. Eigenkapitalrendite = (Cashflow + Tilgung im ersten Jahr) ÷ Eigenkapital. DSCR = Nettomiete ÷ Schuldendienst. Die interne Verzinsung (IRR) rechnet Eigenkapital, jährliche Cashflows und den Verkaufserlös nach Restschuld und Verkaufskosten im Exit-Jahr.</p>
       <p class="note">Sondertilgung läuft am Jahresende und mindert die Restschuld. Sie zählt nicht zum Cashflow, wohl aber zur Verzinsung des Eigenkapitals. Die AfA ergibt sich aus Kaufpreis plus Nebenkosten mal Gebäudeanteil mal AfA-Satz. Steuer = (Kaltmiete nach Leerstand − nicht umlagefähige Kosten − Zinsen − AfA) × Grenzsteuersatz. Die Instandhaltungsrücklage ist nicht abzugsfähig.</p>
+      <p class="note">Renovierung und Sanierung: Fällt sie beim Kauf an (Jahr 0), erhöht sie die Gesamtinvestition und das Eigenkapital, das Darlehen bleibt gleich. Fällt sie später an, mindert sie den Cashflow in diesem Jahr. Die Mehrmiete zählt ab dem Jahr danach. Steuerlich wird die Renovierung hier nicht berücksichtigt, und eine Wertsteigerung ist nicht eingerechnet.</p>
       <p class="note">Das ist eine Modellrechnung und ersetzt keine Steuer- oder Anlageberatung.</p>
     </details>
   </section>
@@ -262,6 +274,7 @@ td.sub, th.sub { color: var(--muted); }
 
 <script>
 /*ENGINE*/
+function invOf(o) { return o.price * (1 + o.nk / 100) + ((o.renoYear || 0) <= 0 ? (o.reno || 0) : 0); }
 function simObj(o, A, S, years) {
   var g = A.rentG / 100, cg = A.costG / 100, vg = A.valueG / 100, tx = (A.grenz || 0) / 100;
   var r0 = o.zins / 100, bal = o.loan, pay = bal * (r0 + o.tilg / 100) / 12, out = [];
@@ -281,10 +294,10 @@ function simObj(o, A, S, years) {
     }
     var sp = Math.min(bal, Math.max(0, o.sonder || 0));
     bal -= sp;
-    var rent = o.rent * 12 * Math.pow(1 + g, y - 1) * (1 - vac / 100);
+    var rent = (o.rent + (y > Math.max(0, o.renoYear || 0) ? (o.renoRent || 0) : 0)) * 12 * Math.pow(1 + g, y - 1) * (1 - vac / 100);
     var nonRecY = o.nonRec * 12 * Math.pow(1 + cg, y - 1);
     var opex = nonRecY + o.maint * o.area * Math.pow(1 + cg, y - 1);
-    var capex = y === S.capexYear ? S.capex * o.area : 0;
+    var capex = (y === S.capexYear ? S.capex * o.area : 0) + (y === Math.round(o.renoYear || 0) && y >= 1 ? (o.reno || 0) : 0);
     var ds = inte + pr;
     var afa = Math.min(afaMax, Math.max(0, afaBasis - afaCum)); afaCum += afa;
     var tax = (rent - nonRecY - inte - afa) * tx;
@@ -293,7 +306,7 @@ function simObj(o, A, S, years) {
   }
   return out;
 }
-function equityOf(o) { return Math.max(0, o.price * (1 + o.nk / 100) - o.loan); }
+function equityOf(o) { return Math.max(0, invOf(o) - o.loan); }
 function irrOf(f) {
   var npv = function (r) { return f.reduce(function (s, c, t) { return s + c / Math.pow(1 + r, t); }, 0); };
   var lo = -0.9, hi = 1, a = npv(lo), b = npv(hi);
@@ -362,7 +375,7 @@ function finInfo(o, A, S) {
   var payAfterS = balFix * (Math.max(0, o.zins + S.dZins) / 100 + A.anTilg / 100) / 12;
   var payoff = null;
   if (o.loan > 0) for (var j = 0; j < 50; j++) if (rows[j].bal <= 0.005) { payoff = j + 1; break; }
-  var noi = r1.rent - r1.opex, inv = o.price * (1 + o.nk / 100), eq = Math.max(0, inv - o.loan), gross = o.rent * 12;
+  var noi = r1.rent - r1.opex, inv = invOf(o), eq = Math.max(0, inv - o.loan), gross = o.rent * 12;
   return {
     rows: rows, fixY: fixY, rateM: rateM, int1: r1.int, tilg1: r1.pr, sp1: r1.sp, sumInt: sumInt, balFix: balFix,
     payAfter0: payAfter0, payAfterS: payAfterS, payoff: payoff, eff: Math.pow(1 + o.zins / 1200, 12) - 1,
@@ -380,7 +393,8 @@ function finInfo(o, A, S) {
     ['name', 'Bezeichnung', 'text'], ['price', 'Kaufpreis (€)', 1000], ['nk', 'Kaufnebenkosten (%)', 0.1], ['area', 'Wohnfläche (m²)', 1],
     ['loan', 'Darlehen (€)', 1000], ['zins', 'Sollzins (% p.a.)', 0.05], ['tilg', 'Anfangstilgung (% p.a.)', 0.1], ['fix', 'Zinsbindung (Jahre)', 1],
     ['rent', 'Kaltmiete (€/Monat)', 10], ['nonRec', 'Nicht umlagefähig (€/Monat)', 5], ['maint', 'Instandhaltung (€/m² und Jahr)', 1], ['vac', 'Leerstand (% der Miete)', 0.5],
-    ['sonder', 'Sondertilgung (€ pro Jahr)', 100], ['geb', 'Gebäudeanteil am Kaufpreis (%)', 1], ['afa', 'AfA-Satz (%)', 0.1]
+    ['sonder', 'Sondertilgung (€ pro Jahr)', 100], ['geb', 'Gebäudeanteil am Kaufpreis (%)', 1], ['afa', 'AfA-Satz (%)', 0.1],
+    ['reno', 'Renovierung und Sanierung (€)', 1000], ['renoYear', 'Renovierung im Jahr (0 = beim Kauf)', 1], ['renoRent', 'Mehrmiete danach (€/Monat)', 10]
   ];
   var ASSUME = [
     ['rentG', 'Mietwachstum (% p.a.)', 0.1], ['costG', 'Kostensteigerung (% p.a.)', 0.1], ['valueG', 'Wertentwicklung (% p.a.)', 0.1],
@@ -491,7 +505,7 @@ function finInfo(o, A, S) {
 
   /* ---------- Auswertung ---------- */
   function kpiOf(p) {
-    var r = p.rows[0], o = p.o, inv = o.price * (1 + o.nk / 100), noi = r.rent - r.opex;
+    var r = p.rows[0], o = p.o, inv = invOf(o), noi = r.rent - r.opex;
     return {
       noi: noi, cf: r.cf, cfAfter: r.cfAfter, tax: r.tax, ds: r.ds, inv: inv,
       net: inv > 0 ? noi / inv : null,
@@ -552,6 +566,7 @@ function finInfo(o, A, S) {
     var cfA = sum(function (k) { return k.cfAfter; }), tax = sum(function (k) { return k.tax; });
     var pr1 = ev.tot[0].pr, loan = state.objs.reduce(function (s, o) { return s + o.loan; }, 0);
     var price = state.objs.reduce(function (s, o) { return s + o.price; }, 0), rentY = state.objs.reduce(function (s, o) { return s + o.rent * 12; }, 0);
+    var renoT = state.objs.reduce(function (a, o) { return a + (o.reno || 0); }, 0), renoNow = state.objs.reduce(function (a, o) { return a + ((o.renoYear || 0) <= 0 ? (o.reno || 0) : 0); }, 0), renoMieteT = state.objs.reduce(function (a, o) { return a + (o.reno > 0 ? (o.renoRent || 0) : 0); }, 0);
     var ekr = ev.eq > 0 ? (cf + pr1) / ev.eq : null, dscr = ds > 0 ? noi / ds : null;
     var repaid = loan > 0 ? 1 - ev.tot[9].bal / loan : null;
     $('kpi-portfolio').innerHTML =
@@ -564,7 +579,8 @@ function finInfo(o, A, S) {
       kpi('Kaufpreisfaktor', rentY > 0 ? nf(price / rentY, 1) + '×' : '–', 'Kaufpreis ÷ Jahreskaltmiete') +
       kpi('Restschuld', eur(ev.tot[0].bal), 'nach Jahr 1, Start ' + eur(loan)) +
       kpi('Getilgt nach 10 Jahren', pct(repaid, 0), 'Restschuld ' + eur(ev.tot[9].bal)) +
-      kpi('Vermögen im Bestand', eur(price - loan), 'Marktwert minus Darlehen, heute');
+      kpi('Vermögen im Bestand', eur(price - loan), 'Marktwert minus Darlehen, heute') +
+      (renoT > 0 ? kpi('Renovierung und Sanierung', eur(renoT), 'davon beim Kauf ' + eur(renoNow) + (renoMieteT > 0 ? ', Mehrmiete ' + eur(renoMieteT) + ' pro Monat' : '')) : '');
     vizPortfolio(ev, ks, inv, loan);
     var rows = ev.per.map(function (p, i) {
       var k = ks[i], o = p.o;
@@ -694,8 +710,8 @@ function finInfo(o, A, S) {
     return '<label class="fld" for="' + id + '">' + f[1] + '<input id="' + id + '" type="' + type + '"' + extra + ' data-scope="' + scope + '"' + (oid ? ' data-oid="' + oid + '"' : '') + ' data-key="' + f[0] + '" value="' + esc(val) + '"></label>';
   }
   function derivedText(o) {
-    var inv = o.price * (1 + o.nk / 100), eq = inv - o.loan;
-    return 'Gesamtinvestition ' + eur(inv) + ', Eigenkapital ' + eur(eq) + ', Beleihung ' + pct(o.price > 0 ? o.loan / o.price : null, 0) + ', Miete ' + (o.area > 0 ? nf(o.rent / o.area, 2) : '–') + ' €/m², Kaufpreis ' + (o.area > 0 ? eur(o.price / o.area) : '–') + '/m²';
+    var inv = invOf(o), eq = inv - o.loan;
+    return (o.reno > 0 ? 'Renovierung ' + eur(o.reno) + ((o.renoYear || 0) <= 0 ? ' beim Kauf, ' : ' in Jahr ' + Math.round(o.renoYear) + ', ') : '') + 'Gesamtinvestition ' + eur(inv) + ', Eigenkapital ' + eur(eq) + ', Beleihung ' + pct(o.price > 0 ? o.loan / o.price : null, 0) + ', Miete ' + (o.area > 0 ? nf(o.rent / o.area, 2) : '–') + ' €/m², Kaufpreis ' + (o.area > 0 ? eur(o.price / o.area) : '–') + '/m²';
   }
   function renderInputs() {
     $('assume').innerHTML = ASSUME.map(function (f) { return fieldHtml('assume', 0, f, state.assume[f[0]]); }).join('');
@@ -703,6 +719,7 @@ function finInfo(o, A, S) {
       return '<div class="ocard"><div class="top"><h2>' + esc(o.name) + '</h2><button class="btn" data-del="' + o.id + '"' + (state.objs.length < 2 ? ' disabled' : '') + '>Entfernen</button></div><div class="fields">' +
         FIELDS.map(function (f) { return fieldHtml('obj', o.id, f, o[f[0]]); }).join('') + '</div><div class="derived" id="dv-' + o.id + '">' + derivedText(o) + '</div></div>';
     }).join('');
+    renFill();
   }
 
   document.addEventListener('input', function (e) {
@@ -790,6 +807,55 @@ function applyTransfer(p){
   return 'Objekt „'+esc(o.name)+'“ angelegt. Darlehen (90 %), Zins und Tilgung sind Annahmen. Bitte anpassen.';
 }
 
+
+/* ---- Übernahme aus der Renovierungs-App ---- */
+function renLocalProjects(){
+  try{ const j=JSON.parse(localStorage.getItem('renovierung-v1')); if(!j||!Array.isArray(j.projs)) return []; return j.projs; }catch(e){ return []; }
+}
+function renPayloadOf(q){
+  try{
+    // gleiche Rechnung wie in der Renovierungs-App, vereinfacht aus den gespeicherten Werten
+    const usf=q.brutto?1.19:1, pf=1+(+q.puffer||0)/100;
+    const pos=(q.pos||[]).map(x=>({kat:x.kat,c:(+(x.a||[])[x.sel]||0)*(1-Math.min(100,+x.eigen||0)/100)*pf,inst:+x.inst||0}));
+    const total=pos.reduce((a,x)=>a+x.c,0);
+    const we=Math.max(1,Math.round(+q.we||1)), capStd=30000+15000*(Math.min(we,6)-1)+8000*Math.max(0,we-6), capIsfp=60000+30000*(Math.min(we,6)-1)+15000*Math.max(0,we-6);
+    const elig=pos.filter(x=>x.kat==='energ').reduce((a,x)=>a+x.c,0), base=Math.min(elig,q.isfp?capIsfp:capStd);
+    let foerd=q.foerdAn?(+q.foerdRate||0)/100*base:0; if(q.foerdAn&&q.isfp) foerd+=0.05*Math.max(0,base-capStd);
+    const qm=+q.qm||0, m0=+q.miete0||0;
+    const modBase=pos.filter(x=>x.kat==='mod'||x.kat==='energ').reduce((a,x)=>a+x.c*(1-(q.v559?15:Math.min(100,x.inst))/100),0)-foerd;
+    const capM=(qm>0&&m0/qm<7)?2:3, uml=Math.min(0.08*Math.max(0,modBase),capM*qm*12);
+    const d=q.modus==='neu'?((+q.mieteZiel||0)*qm-m0)*12:uml;
+    return {src:'renovierung',v:1,name:q.name||'',qm:qm,kosten:Math.round(total-foerd),mehrMiete:Math.round(Math.max(0,d)/12)};
+  }catch(e){ return null; }
+}
+function parseReno(text){
+  try{
+    let t=String(text||'').trim().replace(/^RENOVIERUNG:/,'');
+    const j=t.charAt(0)==='{'?t:decodeURIComponent(escape(atob(t.replace(/\s+/g,''))));
+    const p=JSON.parse(j); return p&&p.src==='renovierung'?p:null;
+  }catch(e){ return null; }
+}
+function renFill(){
+  const sel=document.getElementById('renObj'); if(!sel) return;
+  const cur=sel.value; sel.innerHTML=state.objs.map(o=>'<option value="'+o.id+'">'+esc(o.name)+'</option>').join('');
+  if(cur&&state.objs.some(o=>String(o.id)===cur)) sel.value=cur;
+  const L=document.getElementById('renLocal'), ps=renLocalProjects();
+  if(L) L.innerHTML=ps.length?'<label style="display:block;font-size:13px">Projekt aus der Renovierungs-App auf diesem Gerät</label><select id="renProj" aria-label="Projekt wählen" style="width:100%;min-height:42px;font:inherit;font-size:16px;color:inherit;background:rgba(128,128,128,.1);border:1px solid rgba(128,128,128,.4);border-radius:8px;padding:0 8px"><option value="">Keins wählen</option>'+ps.map(q=>'<option value="'+q.id+'">'+esc(q.name||'Projekt')+'</option>').join('')+'</select>':'<p style="margin:0;font-size:13px;opacity:.8">Auf diesem Gerät sind keine Projekte der Renovierungs-App gefunden. Das ist normal, wenn die Apps als eigene Home-Bildschirm-Symbole laufen. Nutze dann den Übergabecode.</p>';
+}
+function renMessage(t){ const m=document.getElementById('renMsg'); if(m) m.innerHTML=t; const b=document.getElementById('renBox'); if(b) b.open=true; }
+function renRun(){
+  let pl=null; const txt=document.getElementById('renText').value.trim(), ps=document.getElementById('renProj');
+  if(txt){ pl=parseReno(txt); if(!pl){ renMessage('Das ist kein gültiger Übergabecode.'); return false; } }
+  else if(ps&&ps.value){ const q=renLocalProjects().filter(x=>String(x.id)===ps.value)[0]; pl=q?renPayloadOf(q):null; }
+  if(!pl){ renMessage('Wähle ein Projekt oder füge einen Übergabecode ein.'); return false; }
+  const o=state.objs.filter(x=>String(x.id)===document.getElementById('renObj').value)[0]; if(!o) return false;
+  o.reno=Math.max(0,+pl.kosten||0); o.renoRent=Math.max(0,+pl.mehrMiete||0); if(o.renoYear===undefined) o.renoYear=0;
+  state.example=false; save(); renderInputs(); renderOutputs(); renFill();
+  renMessage('Für „'+esc(o.name)+'“ übernommen: Kosten '+eur(o.reno)+' und Mehrmiete '+eur(o.renoRent)+' pro Monat. Den Zeitpunkt (Jahr 0 = beim Kauf) und die Werte kannst du am Objekt anpassen.');
+  return true;
+}
+document.getElementById('renBtn').addEventListener('click',renRun);
+
 /* ---- Übernahme aus der Besichtigungs-App ---- */
 function parseTransfer(text){
   try{
@@ -812,12 +878,13 @@ document.getElementById('impBtn').addEventListener('click',()=>{ impRun(document
 (function(){
   const m=location.hash.match(/^#import=(.+)$/);
   if(!m) return;
-  let ok=false; try{ ok=impRun(decodeURIComponent(m[1])); }catch(e){}
+  let ok=false; try{ const raw=decodeURIComponent(m[1]); if(/^RENOVIERUNG:/.test(raw)){ document.getElementById('renText').value=raw; show('objekte'); renMessage('Code aus der Renovierungs-App eingefügt. Wähle das Objekt und tippe auf Übernehmen.'); ok=true; } else ok=impRun(raw); }catch(e){}
   try{ history.replaceState(null,'',location.pathname+location.search); }catch(e){}
 })();
 })();
 </script>
-<footer class="legal-foot"><button type="button" id="legalBtn">Haftung &amp; Datenschutz</button></footer>
+<footer class="legal-foot"><a id="hubLink" href="../immobilien-hub/">‹ Zum Hub</a> <button type="button" id="legalBtn">Haftung &amp; Datenschutz</button></footer>
+<script>(function(){try{var u=localStorage.getItem('immo-hub-url-v1');if(u)document.getElementById('hubLink').href=u;}catch(e){}})();</script>
 <dialog id="legalDlg"><form method="dialog"><h2>Haftung &amp; Datenschutz</h2>
 <p id="legalWho" hidden></p>
 <h3>Haftung</h3><p>Diese App liefert Orientierungsrechnungen. Sie ersetzt keine Steuer-, Rechts-, Finanzierungs- oder Anlageberatung. Ergebnisse, Fristen und Rechtshinweise können unvollständig oder nicht mehr aktuell sein und hängen von deinen Eingaben und vom Einzelfall ab. Für Richtigkeit und Vollständigkeit wird keine Gewähr übernommen. Prüfe wichtige Entscheidungen mit Steuerberater, Rechtsanwalt oder Bank.</p>
@@ -828,6 +895,7 @@ document.getElementById('impBtn').addEventListener('click',()=>{ impRun(document
 <style>
 .legal-foot{text-align:center;padding:18px 16px calc(100px + env(safe-area-inset-bottom));font:12px/1.3 -apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif}
 .legal-foot button{background:none;border:0;color:inherit;opacity:.6;text-decoration:underline;font:inherit;padding:8px;cursor:pointer}
+.legal-foot a{color:inherit;opacity:.6;text-decoration:underline;font:inherit;padding:8px;display:inline-block}
 #legalDlg{color-scheme:light dark;background:Canvas;color:CanvasText;border:1px solid color-mix(in srgb,CanvasText 25%,transparent);border-radius:14px;padding:18px;max-width:min(460px,calc(100vw - 32px));max-height:80vh;font:14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif}
 #legalDlg::backdrop{background:rgba(0,0,0,.5)}
 #legalDlg h2{font-size:18px;margin:0 0 8px}#legalDlg h3{font-size:14px;margin:14px 0 4px}#legalDlg p{margin:0 0 8px}
