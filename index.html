@@ -26,6 +26,7 @@ body{margin:0}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:no
 .vz svg{display:block;width:100%;height:auto;overflow:visible}
 .vz text{font-family:var(--font-body);fill:var(--muted);font-size:11px}
 .vz .ink{fill:var(--ink)} .vz .nm{font-family:var(--font-num);font-variant-numeric:tabular-nums}
+.debtviz text{fill:var(--muted);font-family:var(--font-body)}
 .vrow{display:grid;grid-template-columns:14px minmax(0,1fr) auto auto;gap:8px;align-items:center;padding:7px 0;border-top:1px solid var(--line);font-size:.9rem}
 .vrow i{width:10px;height:10px;border-radius:3px;display:block}.vrow b{font-family:var(--font-num);font-weight:600}.vrow span.p{font-family:var(--font-num);color:var(--muted);font-size:.8rem}
 /*ENDVIZ*/
@@ -602,6 +603,36 @@ function finInfo(o, A, S) {
   function icrPill(v) { return v === null ? '' : v >= 1.5 ? pillOf('good', 'Solide') : v >= 1.2 ? pillOf('warn', 'Knapp') : pillOf('bad', 'Zu niedrig'); }
   function bePill(v) { return v === null ? '' : v <= 0.85 ? pillOf('good', 'Viel Puffer') : v <= 0.95 ? pillOf('warn', 'Wenig Puffer') : pillOf('bad', 'Kaum Puffer'); }
 
+  /* Zinsen, Tilgung und Sondertilgung je Jahr als gestapelte Balken, bis zur Volltilgung (höchstens 35 Jahre). */
+  function debtChart(rows, fixY, title) {
+    var N = 0; rows.forEach(function (r, i) { if (r.int + r.pr + r.sp > 0.5) N = i + 1; });
+    N = Math.min(N, 35); if (N < 1) return '';
+    var y0 = new Date().getFullYear(), mx = 0, sI = 0, sT = 0, sS = 0;
+    for (var i = 0; i < N; i++) { var r = rows[i]; mx = Math.max(mx, r.int + r.pr + r.sp); sI += r.int; sT += r.pr; sS += r.sp; }
+    var W = 380, H = 200, pl = 6, pr = 6, pt = 16, pb = 26, cw = (W - pl - pr) / N, bw = Math.max(3, cw * 0.72);
+    var Y = function (v) { return pt + (H - pt - pb) * (1 - v / mx); }, g = '', lbl = '';
+    var fk = function (v) { return nf(v / 1000, v >= 10000 ? 0 : 1) + 'k'; };
+    g += '<line x1="' + pl + '" x2="' + (W - pr) + '" y1="' + Y(0) + '" y2="' + Y(0) + '" stroke="var(--line)" stroke-width="1.5"/>';
+    for (var j = 0; j < N; j++) {
+      var q = rows[j], x = pl + cw * j + (cw - bw) / 2, base = 0, tip = (y0 + j) + ': Zinsen ' + eur(q.int) + ', Tilgung ' + eur(q.pr) + (q.sp > 0 ? ', Sondertilgung ' + eur(q.sp) : '') + ', Restschuld ' + eur(q.bal);
+      [[q.pr, 'var(--c1)'], [q.sp, 'var(--c3)'], [q.int, 'var(--c2)']].forEach(function (seg) {
+        if (seg[0] <= 0.5) return;
+        var h = Math.max(1, Y(base) - Y(base + seg[0]) - 1);
+        g += '<rect x="' + x.toFixed(1) + '" y="' + (Y(base + seg[0])).toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + h.toFixed(1) + '" fill="' + seg[1] + '"><title>' + tip + '</title></rect>'; base += seg[0];
+      });
+      if (j === 0 || (j + 1) % 5 === 0 || j === N - 1) lbl += '<text x="' + (x + bw / 2).toFixed(1) + '" y="' + (H - 9) + '" text-anchor="middle" style="font-size:10px">' + (y0 + j) + '</text>';
+    }
+    if (fixY >= 1 && fixY < N) { var fx = pl + cw * fixY; g += '<line x1="' + fx.toFixed(1) + '" x2="' + fx.toFixed(1) + '" y1="' + (pt - 4) + '" y2="' + Y(0) + '" stroke="var(--ink)" stroke-width="1.2" stroke-dasharray="3 3"/><text x="' + Math.min(fx + 4, W - 70).toFixed(1) + '" y="' + (pt - 5) + '" style="font-size:10px">Zinsbindung endet</text>'; }
+    g += '<text x="' + pl + '" y="10" style="font-size:10px">' + fk(mx) + ' € pro Jahr</text>';
+    var aria = title + ': Zinsen gesamt ' + eur(sI) + ', Tilgung ' + eur(sT) + (sS > 0 ? ', Sondertilgung ' + eur(sS) : '') + ' über ' + N + ' Jahre. Im ersten Jahr Zinsen ' + eur(rows[0].int) + ' und Tilgung ' + eur(rows[0].pr) + '.';
+    var tot = sI + sT + sS;
+    return '<div class="debtviz"><h2>' + esc(title) + '</h2><svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(aria) + '" style="width:100%;height:auto;display:block;margin-top:6px">' + g + lbl + '</svg>' +
+      '<div class="vrow"><i style="background:var(--c2)"></i><span>Zinsen</span><b>' + eur(sI) + '</b><span class="p">' + nf(tot > 0 ? sI / tot * 100 : 0, 0) + ' %</span></div>' +
+      '<div class="vrow"><i style="background:var(--c1)"></i><span>Tilgung</span><b>' + eur(sT) + '</b><span class="p">' + nf(tot > 0 ? sT / tot * 100 : 0, 0) + ' %</span></div>' +
+      (sS > 0 ? '<div class="vrow"><i style="background:var(--c3)"></i><span>Sondertilgung</span><b>' + eur(sS) + '</b><span class="p">' + nf(sS / tot * 100, 0) + ' %</span></div>' : '') +
+      '<p class="note">Je Jahr, Basisfall. Mit der Zeit sinken die Zinsen und die Tilgung wächst. Die Werte jedes Jahres stehen im Tilgungsplan darunter.</p></div>';
+  }
+
   function renderFinanz() {
     var A = state.assume, S = state.scen, y0 = new Date().getFullYear();
     var inf = state.objs.map(function (o) { return { o: o, f: finInfo(o, A, S) }; });
@@ -625,7 +656,12 @@ function finInfo(o, A, S) {
     $('tbl-bind').innerHTML = '<table><thead><tr><th>Objekt</th><th>Zinsbindung endet</th><th>Restschuld dann</th><th>Rate heute</th><th>Rate danach, Zins gleich</th><th>Rate danach, Szenario-Zins</th><th>Veränderung pro Monat</th></tr></thead><tbody>' + brow + '</tbody></table>';
     $('bind-note').textContent = 'Raten pro Monat. Nach der Zinsbindung gilt die Anschlusstilgung von ' + nf(A.anTilg, 2) + ' % auf die Restschuld. Das Szenario setzt den Zins um ' + nf(S.dZins, 2) + ' Prozentpunkte höher an (Reiter Szenarien). Die Veränderung vergleicht die Rate im Szenario mit der Rate heute.';
 
-    $('cards-fin').innerHTML = inf.map(function (x) {
+    var withLoan = inf.filter(function (x) { return x.o.loan > 0; }), allChart = '';
+    if (withLoan.length > 1) {
+      var sumRows = []; for (var yi = 0; yi < 50; yi++) { var a = { int: 0, pr: 0, sp: 0, bal: 0 }; withLoan.forEach(function (x) { var r = x.f.rows[yi]; if (r) { a.int += r.int; a.pr += r.pr; a.sp += r.sp; a.bal += r.bal; } }); sumRows.push(a); }
+      allChart = '<div class="panel">' + debtChart(sumRows, Math.min.apply(null, withLoan.map(function (x) { return x.f.fixY; })), 'Alle Darlehen zusammen') + '</div>';
+    }
+    $('cards-fin').innerHTML = allChart + inf.map(function (x) {
       var o = x.o, f = x.f, N = Math.min(f.payoff || 30, 35);
       var plan = f.rows.slice(0, N).map(function (r) {
         return '<tr><td>' + r.y + '</td><td>' + nf(r.rate, 2) + ' %</td><td>' + eur(r.int) + '</td><td>' + eur(r.pr) + '</td><td>' + eur(r.sp) + '</td><td>' + eur(r.bal) + '</td></tr>';
@@ -646,7 +682,7 @@ function finInfo(o, A, S) {
         kpi('Debt Yield', pct(f.dy, 1), 'Nettomiete ÷ Darlehen') +
         kpi('Mindestauslastung', pct(f.be, 0), 'Anteil der Sollmiete, ab dem der Cashflow null ist ' + bePill(f.be)) +
         kpi('Steuer im 1. Jahr', eur(f.tax1), 'AfA ' + eur(f.afa1) + ' · Cashflow n. St. ' + eur(f.cfA / 12) + ' pro Monat') +
-        '</div><details class="plan"><summary>Tilgungsplan, jährlich</summary><div class="tscroll"><table><thead><tr><th>Jahr</th><th>Zinssatz</th><th>Zinsen</th><th>Tilgung</th><th>Sondertilgung</th><th>Restschuld</th></tr></thead><tbody>' + plan + '</tbody></table></div><p class="note">Basisfall: Der Zins bleibt nach der Bindung unverändert.</p></details></div>';
+        '</div>' + (o.loan > 0 ? debtChart(f.rows, f.fixY, 'Zinsen und Tilgung je Jahr') : '') + '<details class="plan"><summary>Tilgungsplan, jährlich</summary><div class="tscroll"><table><thead><tr><th>Jahr</th><th>Zinssatz</th><th>Zinsen</th><th>Tilgung</th><th>Sondertilgung</th><th>Restschuld</th></tr></thead><tbody>' + plan + '</tbody></table></div><p class="note">Basisfall: Der Zins bleibt nach der Bindung unverändert.</p></details></div>';
     }).join('');
   }
 
