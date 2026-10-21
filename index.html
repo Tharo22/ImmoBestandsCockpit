@@ -26,6 +26,7 @@ body{margin:0}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:no
 .vz svg{display:block;width:100%;height:auto;overflow:visible}
 .vz text{font-family:var(--font-body);fill:var(--muted);font-size:11px}
 .vz .ink{fill:var(--ink)} .vz .nm{font-family:var(--font-num);font-variant-numeric:tabular-nums}
+.dcmp{width:100%;min-width:0!important;table-layout:fixed}.dcmp th,.dcmp td{white-space:normal!important;font-size:12.5px;padding:7px 4px!important;text-align:right;vertical-align:top}.dcmp th:first-child,.dcmp td:first-child{width:40%;text-align:left}
 .debtviz text{fill:var(--muted);font-family:var(--font-body)}
 .vrow{display:grid;grid-template-columns:14px minmax(0,1fr) auto auto;gap:8px;align-items:center;padding:7px 0;border-top:1px solid var(--line);font-size:.9rem}
 .vrow i{width:10px;height:10px;border-radius:3px;display:block}.vrow b{font-family:var(--font-num);font-weight:600}.vrow span.p{font-family:var(--font-num);color:var(--muted);font-size:.8rem}
@@ -302,13 +303,29 @@ function simObj(o, A, S, years) {
     var capex = (y === S.capexYear ? S.capex * o.area : 0) + (y === Math.round(o.renoYear || 0) && y >= 1 ? (o.reno || 0) : 0);
     var ds = inte + pr;
     var afa = Math.min(afaMax, Math.max(0, afaBasis - afaCum)); afaCum += afa;
-    var tax = (rent - nonRecY - inte - afa) * tx;
+    var dD = disOf(o), dFix = Math.max(0, Math.round(o.fix || 0));
+    var disDed = dD <= 0 ? 0 : (dFix >= 5 ? (y === 1 ? dD : 0) : (y <= Math.max(1, dFix) ? dD / Math.max(1, dFix) : 0));
+    var tax = (rent - nonRecY - inte - afa - disDed) * tx;
     var cf = rent - opex - ds - capex;
-    out.push({ y: y, rent: rent, opex: opex, int: inte, pr: pr, sp: sp, ds: ds, capex: capex, cf: rent - opex - ds - capex, afa: afa, tax: tax, cfAfter: cf - tax, bal: bal, value: o.price * Math.pow(1 + vg, y), rate: rate * 100 });
+    out.push({ y: y, rent: rent, opex: opex, int: inte, pr: pr, sp: sp, ds: ds, capex: capex, cf: rent - opex - ds - capex, afa: afa, disDed: disDed, tax: tax, cfAfter: cf - tax, bal: bal, value: o.price * Math.pow(1 + vg, y), rate: rate * 100 });
   }
   return out;
 }
-function equityOf(o) { return Math.max(0, invOf(o) - o.loan); }
+function disOf(o) { return Math.max(0, o.loan * Math.min(20, o.dis || 0) / 100); }
+function equityOf(o) { return Math.max(0, invOf(o) - o.loan + disOf(o)); }
+/* Effektiver Jahreszins über die Zinsbindung, mit Disagio: Auszahlung = Darlehen minus Disagio. */
+function effRate(o, rows, fixY) {
+  if (!(o.loan > 0) || fixY < 1) return null;
+  var out = o.loan - disOf(o), pays = [];
+  for (var y = 0; y < fixY; y++) { var r = rows[y]; for (var m = 0; m < 12; m++) pays.push((r.int + r.pr) / 12 + (m === 11 ? r.sp : 0)); }
+  var last = rows[fixY - 1].bal, n = pays.length;
+  var f = function (i) { var v = last / Math.pow(1 + i, n); for (var k = 0; k < n; k++) v += pays[k] / Math.pow(1 + i, k + 1); return v - out; };
+  var lo = 0, hi = 0.05;
+  if (f(lo) < 0) return null;
+  while (f(hi) > 0 && hi < 1) hi *= 2;
+  for (var j = 0; j < 60; j++) { var mid = (lo + hi) / 2; if (f(mid) > 0) lo = mid; else hi = mid; }
+  return Math.pow(1 + (lo + hi) / 2, 12) - 1;
+}
 function irrOf(f) {
   var npv = function (r) { return f.reduce(function (s, c, t) { return s + c / Math.pow(1 + r, t); }, 0); };
   var lo = -0.9, hi = 1, a = npv(lo), b = npv(hi);
@@ -377,14 +394,14 @@ function finInfo(o, A, S) {
   var payAfterS = balFix * (Math.max(0, o.zins + S.dZins) / 100 + A.anTilg / 100) / 12;
   var payoff = null;
   if (o.loan > 0) for (var j = 0; j < 50; j++) if (rows[j].bal <= 0.005) { payoff = j + 1; break; }
-  var noi = r1.rent - r1.opex, inv = invOf(o), eq = Math.max(0, inv - o.loan), gross = o.rent * 12;
+  var noi = r1.rent - r1.opex, inv = invOf(o), eq = Math.max(0, inv - o.loan + disOf(o)), gross = o.rent * 12;
   return {
     rows: rows, fixY: fixY, rateM: rateM, int1: r1.int, tilg1: r1.pr, sp1: r1.sp, sumInt: sumInt, balFix: balFix,
     payAfter0: payAfter0, payAfterS: payAfterS, payoff: payoff, eff: Math.pow(1 + o.zins / 1200, 12) - 1,
     ltv: o.price > 0 ? o.loan / o.price : null, eq: eq, inv: inv, ekq: inv > 0 ? eq / inv : null, noi: noi,
     icr: r1.int > 0 ? noi / r1.int : null, dscr: r1.ds > 0 ? noi / r1.ds : null, dsq: r1.rent > 0 ? r1.ds / r1.rent : null,
     dy: o.loan > 0 ? noi / o.loan : null, be: gross > 0 ? (r1.opex + r1.ds) / gross : null,
-    tax1: r1.tax, afa1: r1.afa, cfA: r1.cfAfter
+    tax1: r1.tax, afa1: r1.afa, cfA: r1.cfAfter, dis: disOf(o), effD: effRate(o, rows, fixY)
   };
 }
 /*END*/
@@ -393,7 +410,7 @@ function finInfo(o, A, S) {
   var KEY = 'bestands-cockpit-v1';
   var FIELDS = [
     ['name', 'Bezeichnung', 'text'], ['price', 'Kaufpreis (€)', 1000], ['nk', 'Kaufnebenkosten (%)', 0.1], ['area', 'Wohnfläche (m²)', 1],
-    ['loan', 'Darlehen (€)', 1000], ['zins', 'Sollzins (% p.a.)', 0.05], ['tilg', 'Anfangstilgung (% p.a.)', 0.1], ['fix', 'Zinsbindung (Jahre)', 1],
+    ['loan', 'Darlehen (€)', 1000], ['zins', 'Sollzins (% p.a.)', 0.05], ['tilg', 'Anfangstilgung (% p.a.)', 0.1], ['fix', 'Zinsbindung (Jahre)', 1], ['dis', 'Disagio (% vom Darlehen)', 0.1],
     ['rent', 'Kaltmiete (€/Monat)', 10], ['nonRec', 'Nicht umlagefähig (€/Monat)', 5], ['maint', 'Instandhaltung (€/m² und Jahr)', 1], ['vac', 'Leerstand (% der Miete)', 0.5],
     ['sonder', 'Sondertilgung (€ pro Jahr)', 100], ['geb', 'Gebäudeanteil am Kaufpreis (%)', 1], ['afa', 'AfA-Satz (%)', 0.1],
     ['fixEnd', 'Zinsbindung endet am (optional)', 'date'], ['reno', 'Renovierung und Sanierung (€)', 1000], ['renoYear', 'Renovierung im Jahr (0 = beim Kauf)', 1], ['renoRent', 'Mehrmiete danach (€/Monat)', 10]
@@ -633,6 +650,33 @@ function finInfo(o, A, S) {
       '<p class="note">Je Jahr, Basisfall. Mit der Zeit sinken die Zinsen und die Tilgung wächst. Die Werte jedes Jahres stehen im Tilgungsplan darunter.</p></div>';
   }
 
+  /* Vergleich mit und ohne Disagio bei gleichem Effektivzins. */
+  function disCompare(o, f, A) {
+    if (!(f.dis > 0) || f.fixY < 1) return '';
+    var tx = (A.grenz || 0) / 100, target = f.effD, fixY = f.fixY;
+    if (target === null) return '';
+    var o2 = Object.assign({}, o, { dis: 0 }), lo = 0, hi = 30, rows2 = null;
+    for (var i = 0; i < 40; i++) { o2.zins = (lo + hi) / 2; rows2 = simObj(o2, A, S0, 50); var e = effRate(o2, rows2, fixY); if (e > target) hi = o2.zins; else lo = o2.zins; }
+    o2.zins = (lo + hi) / 2; rows2 = simObj(o2, A, S0, 50);
+    var sum = function (rs, k) { var t = 0; for (var j = 0; j < fixY; j++) t += rs[j][k]; return t; };
+    var iA = sum(f.rows, 'int'), iB = sum(rows2, 'int');
+    var dedA = iA + sum(f.rows, 'disDed'), dedB = iB;
+    var rateA = o.loan * (o.zins + o.tilg) / 1200, rateB = o.loan * (o2.zins + o2.tilg) / 1200;
+    var d1 = f.rows[0].int + f.rows[0].disDed, d1B = rows2[0].int;
+    var row = function (l, a, b, fm) { return '<tr><td>' + l + '</td><td>' + fm(a) + '</td><td>' + fm(b) + '</td></tr>'; };
+    return '<details class="plan"><summary>Disagio im Vergleich</summary><div class="tscroll"><table class="dcmp"><thead><tr><th></th><th>Mit Disagio</th><th>Ohne, gleicher Effektivzins</th></tr></thead><tbody>' +
+      row('Sollzins', o.zins, o2.zins, function (v) { return nf(v, 2) + ' %'; }) +
+      row('Auszahlung', o.loan - f.dis, o.loan, eur) +
+      row('Eigenkapital', f.eq, Math.max(0, f.inv - o.loan), eur) +
+      row('Rate pro Monat', rateA, rateB, eur) +
+      row('Zinsen in der Bindung', iA, iB, eur) +
+      row('Abzug Zinsen und Disagio, Jahr 1', d1, d1B, eur) +
+      row('Steuerersparnis, Jahr 1', d1 * tx, d1B * tx, eur) +
+      row('Steuerersparnis in der Bindung', dedA * tx, dedB * tx, eur) +
+      row('Restschuld nach Bindung', f.balFix, rows2[fixY - 1].bal, eur) +
+      '</tbody></table></div><p class="note">Beide Varianten kosten vor Steuern gleich viel, denn der Effektivzins ist gleich (' + nf(target * 100, 2) + ' %). Mit Disagio zahlst du mehr Eigenkapital ein und bekommst die Steuerersparnis früher. Über die ganze Bindung ist der Steuervorteil bei einem gleichbleibenden Steuersatz nahezu gleich. Der Gewinn liegt im Zeitvorteil. ' + (tx <= 0 ? 'Dein Grenzsteuersatz steht auf 0, dann bringt das Disagio nichts. ' : '') + (o.fix < 5 ? 'Bei weniger als fünf Jahren Zinsbindung setzt die App das Disagio verteilt über die Bindung an. ' : '') + 'Das ist keine Steuerberatung.</p></details>';
+  }
+
   function renderFinanz() {
     var A = state.assume, S = state.scen, y0 = new Date().getFullYear();
     var inf = state.objs.map(function (o) { return { o: o, f: finInfo(o, A, S) }; });
@@ -668,7 +712,8 @@ function finInfo(o, A, S) {
       }).join('');
       return '<div class="panel"><div class="fhead"><h2>' + esc(o.name) + '</h2>' + statusDscr(f.dscr) + '</div><div class="kpis">' +
         kpi('Rate pro Monat', eur(f.rateM), 'Zinsen ' + eur(f.int1 / 12) + ' · Tilgung ' + eur(f.tilg1 / 12) + ' (Jahr 1)') +
-        kpi('Sollzins', nf(o.zins, 2) + ' %', 'effektiv ' + nf(f.eff * 100, 2) + ' % p. a.') +
+        kpi('Sollzins', nf(o.zins, 2) + ' %', f.dis > 0 && f.effD !== null ? 'effektiv ' + nf(f.effD * 100, 2) + ' % mit Disagio' : 'effektiv ' + nf(f.eff * 100, 2) + ' % p. a.') +
+        (f.dis > 0 ? kpi('Disagio', eur(f.dis), 'Auszahlung ' + eur(o.loan - f.dis) + ', Steuerabzug ' + (o.fix >= 5 ? 'in Jahr 1' : 'verteilt')) : '') +
         kpi('Zinsbindung endet', f.fixY >= 1 ? String(y0 + f.fixY) : 'jetzt', 'in ' + f.fixY + ' Jahren') +
         kpi('Restschuld nach Bindung', eur(f.balFix), pct(o.loan > 0 ? f.balFix / o.loan : null, 0) + ' des Darlehens') +
         kpi('Zinsen in der Bindung', eur(f.sumInt), 'Summe über ' + f.fixY + ' Jahre') +
@@ -682,7 +727,7 @@ function finInfo(o, A, S) {
         kpi('Debt Yield', pct(f.dy, 1), 'Nettomiete ÷ Darlehen') +
         kpi('Mindestauslastung', pct(f.be, 0), 'Anteil der Sollmiete, ab dem der Cashflow null ist ' + bePill(f.be)) +
         kpi('Steuer im 1. Jahr', eur(f.tax1), 'AfA ' + eur(f.afa1) + ' · Cashflow n. St. ' + eur(f.cfA / 12) + ' pro Monat') +
-        '</div>' + (o.loan > 0 ? debtChart(f.rows, f.fixY, 'Zinsen und Tilgung je Jahr') : '') + '<details class="plan"><summary>Tilgungsplan, jährlich</summary><div class="tscroll"><table><thead><tr><th>Jahr</th><th>Zinssatz</th><th>Zinsen</th><th>Tilgung</th><th>Sondertilgung</th><th>Restschuld</th></tr></thead><tbody>' + plan + '</tbody></table></div><p class="note">Basisfall: Der Zins bleibt nach der Bindung unverändert.</p></details></div>';
+        '</div>' + (o.loan > 0 ? debtChart(f.rows, f.fixY, 'Zinsen und Tilgung je Jahr') : '') + disCompare(o, f, A) + '<details class="plan"><summary>Tilgungsplan, jährlich</summary><div class="tscroll"><table><thead><tr><th>Jahr</th><th>Zinssatz</th><th>Zinsen</th><th>Tilgung</th><th>Sondertilgung</th><th>Restschuld</th></tr></thead><tbody>' + plan + '</tbody></table></div><p class="note">Basisfall: Der Zins bleibt nach der Bindung unverändert.</p></details></div>';
     }).join('');
   }
 
@@ -747,8 +792,8 @@ function finInfo(o, A, S) {
     return '<label class="fld" for="' + id + '">' + f[1] + '<input id="' + id + '" type="' + type + '"' + extra + ' data-scope="' + scope + '"' + (oid ? ' data-oid="' + oid + '"' : '') + ' data-key="' + f[0] + '" value="' + esc(val) + '"></label>';
   }
   function derivedText(o) {
-    var inv = invOf(o), eq = inv - o.loan;
-    return (o.reno > 0 ? 'Renovierung ' + eur(o.reno) + ((o.renoYear || 0) <= 0 ? ' beim Kauf, ' : ' in Jahr ' + Math.round(o.renoYear) + ', ') : '') + 'Gesamtinvestition ' + eur(inv) + ', Eigenkapital ' + eur(eq) + ', Beleihung ' + pct(o.price > 0 ? o.loan / o.price : null, 0) + ', Miete ' + (o.area > 0 ? nf(o.rent / o.area, 2) : '–') + ' €/m², Kaufpreis ' + (o.area > 0 ? eur(o.price / o.area) : '–') + '/m²';
+    var inv = invOf(o), eq = inv - o.loan + disOf(o);
+    return (o.reno > 0 ? 'Renovierung ' + eur(o.reno) + ((o.renoYear || 0) <= 0 ? ' beim Kauf, ' : ' in Jahr ' + Math.round(o.renoYear) + ', ') : '') + 'Gesamtinvestition ' + eur(inv) + ', Eigenkapital ' + eur(eq) + (disOf(o) > 0 ? ' (inkl. Disagio ' + eur(disOf(o)) + ')' : '') + ', Beleihung ' + pct(o.price > 0 ? o.loan / o.price : null, 0) + ', Miete ' + (o.area > 0 ? nf(o.rent / o.area, 2) : '–') + ' €/m², Kaufpreis ' + (o.area > 0 ? eur(o.price / o.area) : '–') + '/m²';
   }
   function renderInputs() {
     $('assume').innerHTML = ASSUME.map(function (f) { return fieldHtml('assume', 0, f, state.assume[f[0]]); }).join('');
