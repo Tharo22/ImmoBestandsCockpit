@@ -743,12 +743,13 @@ function finInfo(o, A, S) {
     var unl = evaluate([Object.assign({}, o0, { loan: 0, dis: 0, sonder: 0 })], Ah, S0).per[0];
     var base = simObj(o0, A, S0, 1)[0];
     act.forEach(function (a) {
-      var ev = evaluate([a.o], Ah, S0).per[0], rows = ev.rows, cum = 0, cumFix = 0, sp = 0, mn = Infinity, later = 0, gains = [-(a.ek) + (o0.price - a.fk)];
+      var ev = evaluate([a.o], Ah, S0).per[0], rows = ev.rows, cumV = 0, cumVFix = 0, laterV = 0, mnV = Infinity, cum = 0, cumFix = 0, sp = 0, mn = Infinity, later = 0, gains = [-(a.ek) + (o0.price - a.fk)];
       for (var y = 0; y < T; y++) {
-        var r = rows[y]; cum += r.cfAfter; sp += r.sp; if (r.cfAfter < mn) mn = r.cfAfter; if (y >= 1) later += r.cfAfter;
+        var r = rows[y]; cumV += r.cf; if (r.cf < mnV) mnV = r.cf; if (y >= 1) laterV += r.cf; cum += r.cfAfter; sp += r.sp; if (r.cfAfter < mn) mn = r.cfAfter; if (y >= 1) later += r.cfAfter;
         gains.push(r.value - r.bal - a.ek - sp + cum);
       }
-      for (var z = 0; z < Math.max(1, a.fixY); z++) cumFix += a.rows[z].cfAfter;
+      for (var z = 0; z < Math.max(1, a.fixY); z++) { cumFix += a.rows[z].cfAfter; cumVFix += a.rows[z].cf; }
+      a.cfV1 = rows[0].cf / 12; a.cfVLater = T >= 2 ? laterV / (T - 1) / 12 : null; a.minCfV = mnV / 12; a.cumCfV = cumV; a.cumCfVFix = cumVFix; a.avgCfV = cumV / T / 12;
       a.cfLater = T >= 2 ? later / (T - 1) / 12 : null; a.cumCf = cum; a.cumCfFix = cumFix; a.minCf = mn / 12; a.avgCf = cum / T / 12;
       a.tilgT = a.fk - rows[T - 1].bal; a.spT = sp; a.valT = rows[T - 1].value; a.balT = rows[T - 1].bal;
       a.gain = gains[T]; a.gains = gains; a.irr = ev.irrAfter; a.lev = a.irr !== null && unl.irrAfter !== null ? a.irr - unl.irrAfter : null;
@@ -763,7 +764,7 @@ function finInfo(o, A, S) {
     var rel = minCost > 0 ? (a.costNet - minCost) / minCost : 0; g.cost = rel <= 0.03 ? 2 : (rel <= 0.1 ? 1 : 0); g.costT = rel <= 0.0005 ? 'Beste' : '+' + nf(rel * 100, 0) + ' %';
     var dEk = inv > 0 ? (a.ek - minEk) / inv : 0; g.ek = dEk <= 0.015 ? 2 : (dEk <= 0.04 ? 1 : 0); g.ekT = dEk <= 0.0005 ? 'Beste' : '+' + eur(a.ek - minEk);
     g.sec = a.fixY >= 10 ? 2 : (a.fixY >= 5 ? 1 : 0); g.secT = a.fixY + ' J.';
-    g.cf = a.avgCf >= 0 && a.cf1 >= 0 ? 2 : (a.avgCf >= -100 ? 1 : 0); g.cfT = 'Ø ' + (a.avgCf >= 0 ? '+' : '−') + eur(Math.abs(a.avgCf));
+    g.cf = a.avgCfV >= 0 && a.cfV1 >= 0 ? 2 : (a.avgCfV >= -100 ? 1 : 0); g.cfT = 'Ø ' + (a.avgCfV >= 0 ? '+' : '−') + eur(Math.abs(a.avgCfV));
     var maxGain = Math.max.apply(null, all.map(function (x) { return x.gain; })), rg = (maxGain - a.gain) / Math.max(1, Math.abs(maxGain));
     g.verm = rg <= 0.0005 ? 2 : (rg <= 0.1 ? 2 : (rg <= 0.25 ? 1 : 0)); g.vermT = rg <= 0.0005 ? 'Beste' : '−' + nf(rg * 100, 0) + ' %';
     var maxIrr = Math.max.apply(null, all.map(function (x) { return x.irr === null ? -1 : x.irr; })), dI = a.irr === null ? 1 : maxIrr - a.irr;
@@ -798,6 +799,12 @@ function finInfo(o, A, S) {
       row('Zinsen und Disagio, ' + R.T + ' J.', function (a) { return eur(a.cost); }) +
       row('Kosten nach Steuer, ' + R.T + ' J.', function (a) { return eur(a.costNet); }) +
       row('Restschuld nach Bindung', function (a) { return eur(a.bal); }) +
+      secRow('Cashflow vor Steuern, pro Monat') +
+      row('Jahr 1', function (a) { return sgn(a.cfV1); }) +
+      row('Ø Jahr 2 bis ' + R.T, function (a) { return a.cfVLater === null ? '–' : sgn(a.cfVLater); }) +
+      row('Schwächstes Jahr', function (a) { return sgn(a.minCfV); }) +
+      row('<b>Kumuliert, ' + R.T + ' J.</b>', function (a) { return '<b>' + sgn(a.cumCfV) + '</b>'; }) +
+      row('Kumuliert bis Bindungsende', function (a) { return sgn(a.cumCfVFix); }) +
       secRow('Cashflow nach Steuern, pro Monat') +
       row('Jahr 1', function (a) { return sgn(a.cf1); }) +
       row('Ø Jahr 2 bis ' + R.T, function (a) { return a.cfLater === null ? '–' : sgn(a.cfLater); }) +
@@ -822,7 +829,7 @@ function finInfo(o, A, S) {
       row('EK-Rendite (IRR)', function (a) { return fvPill(a.g.rend, a.g.rendT); }) +
       row('Hebeleffekt', function (a) { return fvPill(a.g.hebel, a.g.hebelT); }) +
       row('Zinsbindung', function (a) { return fvPill(a.g.sec, a.g.secT); }) +
-      row('Cashflow kumuliert', function (a) { return fvPill(a.g.cf, a.g.cfT); }) +
+      row('Cashflow v. St. kumuliert', function (a) { return fvPill(a.g.cf, a.g.cfT); }) +
       row('<b>Punkte</b>', function (a) { return '<b>' + a.g.score + ' von 34</b>'; }) +
       '</tbody></table></div>';
     // Balken: Zinsen + Disagio anteilig über den gemeinsamen Zeitraum
@@ -850,7 +857,7 @@ function finInfo(o, A, S) {
     var txt = '<b>' + esc(best.name) + '</b> schneidet am besten ab' + (why.length ? ': ' + why.join(', ') : ' (' + best.g.score + ' von 34 Punkten)') + '.';
     var notes = [];
     if (close) {
-      var dEk = best.ek - run.ek, dCf = best.cf1 - run.cf1, dCost = run.costNet - best.costNet;
+      var dEk = best.ek - run.ek, dCf = best.cfV1 - run.cfV1, dCost = run.costNet - best.costNet;
       notes.push('<b>' + esc(best.name) + '</b> und <b>' + esc(run.name) + '</b> liegen praktisch gleichauf (Effektivzins ' + nf(best.eff * 100, 2) + ' % und ' + nf(run.eff * 100, 2) + ' %). ' +
         esc(best.name) + ' kostet nach Steuern ' + eur(Math.abs(dCost)) + (dCost >= 0 ? ' weniger' : ' mehr') + ', hat ' + eur(Math.abs(dCf)) + (dCf >= 0 ? ' mehr' : ' weniger') + ' Cashflow pro Monat und braucht ' + eur(Math.abs(dEk)) + (dEk >= 0 ? ' mehr' : ' weniger') + ' Eigenkapital. Entscheide danach, wie viel Eigenkapital du binden willst.');
     }
@@ -859,9 +866,9 @@ function finInfo(o, A, S) {
     if (best.D > 0) notes.push('Das Disagio von ' + eur(best.D) + ' erhöht den Eigenkapitalbedarf. Bei vorzeitigem Verkauf oder Ablösung bekommst du es meist nicht zurück.');
     if (best.fixY < 10) notes.push('Die Zinsbindung endet nach ' + best.fixY + ' Jahren. Plane die Anschlussfinanzierung ein, im Szenario-Reiter siehst du den Effekt höherer Zinsen.');
     if (R.unlIrr !== null && best.irr !== null) notes.push(best.lev >= 0.005 ? 'Der Hebel wirkt positiv: Mit Darlehen erzielst du ' + nf(best.irr * 100, 1) + ' % p.a. auf dein Eigenkapital, ohne Darlehen wären es ' + nf(R.unlIrr * 100, 1) + ' %. Die Objektrendite nach Kosten (' + nf((R.objY || 0) * 100, 1) + ' % im ersten Jahr) liegt über dem Effektivzins (' + nf((best.eff || 0) * 100, 2) + ' %).' : 'Der Hebel bringt hier kaum etwas: Mit Darlehen ' + nf(best.irr * 100, 1) + ' % p.a., ohne ' + nf(R.unlIrr * 100, 1) + ' %. Die Objektrendite nach Kosten (' + nf((R.objY || 0) * 100, 1) + ' %) liegt nicht klar über dem Effektivzins. Mehr Fremdkapital erhöht dann vor allem das Risiko.');
-    if (best.avgCf < 0) notes.push('Über ' + R.T + ' Jahre legst du aus laufenden Einnahmen netto ' + eur(-best.cumCf) + ' zu. Das ist der Preis für den Vermögensaufbau, plane die Liquidität dafür ein.');
-    else if (best.cf1 < 0 && best.cfLater !== null && best.cfLater >= 0) notes.push('Das erste Jahr ist beim Cashflow negativ (' + eur(best.cf1) + ' pro Monat), ab Jahr 2 liegt er im Schnitt bei ' + sgn(best.cfLater) + ' pro Monat.');
-    if (best.cf1 < 0) notes.push('Der Cashflow nach Steuern ist im ersten Jahr negativ (' + eur(best.cf1) + ' pro Monat). Prüfe, ob du das aus anderem Einkommen tragen kannst.');
+    if (best.avgCfV < 0) notes.push('Über ' + R.T + ' Jahre legst du vor Steuern aus laufenden Einnahmen netto ' + eur(-best.cumCfV) + ' zu. Das ist der Preis für den Vermögensaufbau, plane die Liquidität dafür ein.');
+    else if (best.cfV1 < 0 && best.cfVLater !== null && best.cfVLater >= 0) notes.push('Das erste Jahr ist beim Cashflow vor Steuern negativ (' + eur(best.cfV1) + ' pro Monat), ab Jahr 2 liegt er im Schnitt bei ' + sgn(best.cfVLater) + ' pro Monat.');
+    if (best.cfV1 < 0) notes.push('Der Cashflow vor Steuern ist im ersten Jahr negativ (' + eur(best.cfV1) + ' pro Monat). Prüfe, ob du das aus anderem Einkommen tragen kannst.');
     if (act.some(function (a) { return a.fixY !== act[0].fixY; })) notes.push('Die Angebote haben unterschiedliche Bindungen. Die Kosten sind deshalb nur über die ersten ' + R.T + ' Jahre verglichen, das Disagio anteilig.');
     var rec = '<div class="warn" style="margin-top:14px;border-left:4px solid var(--accent)"><b>Empfehlung</b><br>' + txt + (notes.length ? '<ul style="margin:8px 0 0;padding-left:18px">' + notes.map(function (n) { return '<li>' + n + '</li>'; }).join('') + '</ul>' : '') + '</div>' +
       '<p class="note">Orientierung, keine Finanzierungs- oder Steuerberatung. Nicht enthalten sind Bereitstellungszinsen, Kontoführungsgebühren, Vorfälligkeitsentschädigung und die Wirkung der Steuerprogression. Gewinn und Rendite rechnen mit den Annahmen aus dem Reiter Szenarien (Mietsteigerung, Kostensteigerung, Wertsteigerung, Verkaufskosten) und einem Verkauf nach ' + R.T + ' Jahren. Die Wertsteigerung ist bei allen Angeboten gleich (' + sgn(R.wert) + '). Die Punkte gewichten Effektivzins, Vermögensaufbau und Rendite am stärksten.' + (act.some(function (a) { return a.man; }) ? ' Manuell eingegebene Effektivzinsen gehen so in die Bewertung ein. Die Kosten in Euro stammen weiterhin aus dem Tilgungsplan mit dem Sollzins.' : '') + '</p>';
