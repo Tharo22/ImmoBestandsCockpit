@@ -27,6 +27,7 @@ body{margin:0}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:no
 .vz text{font-family:var(--font-body);fill:var(--muted);font-size:11px}
 .vz .ink{fill:var(--ink)} .vz .nm{font-family:var(--font-num);font-variant-numeric:tabular-nums}
 .dcmp{width:100%;min-width:0!important;table-layout:fixed}.dcmp th,.dcmp td{white-space:normal!important;font-size:12.5px;padding:7px 4px!important;text-align:right;vertical-align:top}.dcmp th:first-child,.dcmp td:first-child{width:40%;text-align:left}
+.fvt th,.fvt td{font-size:11.5px!important;padding:6px 2px!important}.fvt th small{font-weight:400;color:var(--muted);text-transform:none;letter-spacing:0}.fvt .pill{white-space:nowrap;padding:2px 5px;font-size:.68rem}.fvt th:first-child,.fvt td:first-child{width:31%}
 .debtviz text{fill:var(--muted);font-family:var(--font-body)}
 .vrow{display:grid;grid-template-columns:14px minmax(0,1fr) auto auto;gap:8px;align-items:center;padding:7px 0;border-top:1px solid var(--line);font-size:.9rem}
 .vrow i{width:10px;height:10px;border-radius:3px;display:block}.vrow b{font-family:var(--font-num);font-weight:600}.vrow span.p{font-family:var(--font-num);color:var(--muted);font-size:.8rem}
@@ -214,6 +215,12 @@ td.sub, th.sub { color: var(--muted); }
       <p class="note" id="bind-note"></p>
     </div>
     <div class="cards" id="cards-fin"></div>
+    <div class="panel" id="fv-panel">
+      <h2>Finanzierungsvergleich</h2>
+      <p class="note">Stelle bis zu drei Angebote für dasselbe Objekt nebeneinander. Ein Angebot mit Darlehen 0 wird ignoriert.</p>
+      <div id="fv-in"></div>
+      <div id="fv-out"></div>
+    </div>
     <details>
       <summary>Was die Rechnung nicht abbildet</summary>
       <p class="note">Vorfälligkeitsentschädigung, wenn du ein Darlehen vor Ende der Zinsbindung ablöst oder das Objekt verkaufst.</p>
@@ -440,6 +447,7 @@ function finInfo(o, A, S) {
       assume: { rentG: 1.5, costG: 2, valueG: 1.5, anTilg: 2, sale: 4, horizon: 15, grenz: 42 },
       scen: { dZins: 2, xVac: 5, capex: 200, capexYear: 5, exitDisc: 5 },
       nextId: 3,
+      fv: null,
       objs: [
         { id: 1, name: 'Objekt 1', price: 179000, nk: 10.6, area: 62, loan: 143200, zins: 3.6, tilg: 2, fix: 10, rent: 780, nonRec: 70, maint: 12, vac: 2, sonder: 0, geb: 80, afa: 2 },
         { id: 2, name: 'Objekt 2', price: 240000, nk: 10.6, area: 70, loan: 168000, zins: 3.2, tilg: 2, fix: 10, rent: 900, nonRec: 80, maint: 12, vac: 2, sonder: 0, geb: 80, afa: 2 }
@@ -447,6 +455,7 @@ function finInfo(o, A, S) {
     };
   }
   var state = load() || defaults();
+  if (!state.fv) state.fv = mkFv(state.objs[0]);
   var tab = 'portfolio';
   var $ = function (id) { return document.getElementById(id); };
 
@@ -464,6 +473,13 @@ function finInfo(o, A, S) {
       return normalize(JSON.parse(raw));
     } catch (e) { return null; }
   }
+  function mkFv(o) {
+    var b = { loan: o.loan, dis: 0, zins: o.zins, tilg: o.tilg, fix: o.fix, sonder: o.sonder || 0 };
+    return { obj: o.id, off: [
+      Object.assign({ n: 'Bank A' }, b),
+      Object.assign({ n: 'Bank B (Disagio)' }, b, { dis: 3, zins: Math.max(0, +(o.zins - 0.5).toFixed(2)) }),
+      Object.assign({ n: 'Bank C (15 Jahre)' }, b, { zins: +(o.zins + 0.3).toFixed(2), fix: Math.max(o.fix + 5, 15) })] };
+  }
   function normalize(s) {
     var d = defaults();
     if (!s || !Array.isArray(s.objs) || !s.objs.length) return null;
@@ -478,6 +494,9 @@ function finInfo(o, A, S) {
     s.nextId = Math.max.apply(null, s.objs.map(function (o) { return o.id; })) + 1;
     s.assume.horizon = Math.min(30, Math.max(5, Math.round(s.assume.horizon)));
     s.example = !!s.example;
+    if (!s.fv || !Array.isArray(s.fv.off) || s.fv.off.length !== 3) s.fv = mkFv(s.objs[0]);
+    s.fv.off = s.fv.off.map(function (x) { var r = { n: String(x.n || 'Angebot') }; ['loan', 'dis', 'zins', 'tilg', 'fix', 'sonder'].forEach(function (k) { r[k] = Number(x[k]) || 0; }); return r; });
+    if (!s.objs.some(function (o) { return o.id === s.fv.obj; })) s.fv.obj = s.objs[0].id;
     return s;
   }
 
@@ -677,7 +696,125 @@ function finInfo(o, A, S) {
       '</tbody></table></div><p class="note">Beide Varianten kosten vor Steuern gleich viel, denn der Effektivzins ist gleich (' + nf(target * 100, 2) + ' %). Mit Disagio zahlst du mehr Eigenkapital ein und bekommst die Steuerersparnis früher. Über die ganze Bindung ist der Steuervorteil bei einem gleichbleibenden Steuersatz nahezu gleich. Der Gewinn liegt im Zeitvorteil. ' + (tx <= 0 ? 'Dein Grenzsteuersatz steht auf 0, dann bringt das Disagio nichts. ' : '') + (o.fix < 5 ? 'Bei weniger als fünf Jahren Zinsbindung setzt die App das Disagio verteilt über die Bindung an. ' : '') + 'Das ist keine Steuerberatung.</p></details>';
   }
 
+  /* ---------- Finanzierungsvergleich ---------- */
+  var FVF = [['n', 'Bezeichnung', 'text'], ['loan', 'Darlehen / Fremdkapital (€)', 1000], ['dis', 'Disagio (% vom Darlehen, optional)', 0.1], ['zins', 'Sollzins (% p.a.)', 0.05], ['tilg', 'Anfangstilgung (% p.a.)', 0.1], ['fix', 'Zinsbindung (Jahre)', 1], ['sonder', 'Sondertilgung (€ pro Jahr)', 100]];
+  function fvObj() {
+    if (!state.fv) state.fv = mkFv(state.objs[0]);
+    var o = state.objs.filter(function (x) { return x.id === state.fv.obj; })[0];
+    if (!o) { o = state.objs[0]; state.fv.obj = o.id; }
+    return o;
+  }
+  function renderFvIn() {
+    var o = fvObj(), el = $('fv-in'); if (!el) return;
+    el.innerHTML = '<label class="fld" for="fv-obj">Objekt<select id="fv-obj" data-scope="fv" data-key="obj">' + state.objs.map(function (x) { return '<option value="' + x.id + '"' + (x.id === o.id ? ' selected' : '') + '>' + esc(x.name) + '</option>'; }).join('') + '</select></label>' +
+      state.fv.off.map(function (of, i) {
+        return '<details class="ocard"><summary><b>Angebot ' + 'ABC'.charAt(i) + '</b> · ' + esc(of.n) + '</summary><div class="fields">' + FVF.map(function (f) { return fieldHtml('fv', i + 1, f, of[f[0]]); }).join('') + '</div></details>';
+      }).join('');
+  }
+  function fvCalc() {
+    var A = state.assume, o0 = fvObj(), inv = invOf(o0), tx = (A.grenz || 0) / 100;
+    var offs = state.fv.off.map(function (of, i) {
+      if (!(of.loan > 0)) return null;
+      var o = Object.assign({}, o0, { loan: of.loan, zins: of.zins, tilg: of.tilg, fix: Math.round(of.fix), dis: of.dis, sonder: of.sonder });
+      var rows = simObj(o, A, S0, 50), fixY = Math.min(Math.max(0, Math.round(of.fix)), 50), D = disOf(o);
+      var rateM = of.loan * (of.zins + of.tilg) / 1200, r1 = rows[0];
+      var noi = r1.rent - r1.opex;
+      return { i: i, name: of.n || ('Angebot ' + 'ABC'.charAt(i)), of: of, o: o, rows: rows, fixY: fixY, D: D, fk: of.loan, ek: Math.max(0, inv - of.loan + D), rateM: rateM,
+        eff: effRate(o, rows, fixY), bal: fixY > 0 ? rows[fixY - 1].bal : of.loan, cf1: r1.cfAfter / 12, dscr: r1.ds > 0 ? noi / r1.ds : null };
+    });
+    var act = offs.filter(Boolean);
+    if (!act.length) return { act: [], inv: inv };
+    var T = Math.max(1, Math.min.apply(null, act.map(function (a) { return a.fixY || 1; })));
+    act.forEach(function (a) {
+      var si = 0; for (var y = 0; y < T; y++) si += a.rows[y].int;
+      a.T = T; a.sumInt = si; a.dPro = a.fixY > 0 ? a.D * Math.min(1, T / a.fixY) : a.D;
+      a.cost = si + a.dPro; a.costNet = a.cost * (1 - tx);
+    });
+    return { act: act, inv: inv, T: T, tx: tx };
+  }
+  function fvGrade(a, all, inv) {
+    var minEff = Math.min.apply(null, all.map(function (x) { return x.eff === null ? 99 : x.eff; })), minCost = Math.min.apply(null, all.map(function (x) { return x.costNet; })), minEk = Math.min.apply(null, all.map(function (x) { return x.ek; }));
+    var g = {};
+    var dEff = (a.eff === null ? 99 : a.eff) - minEff; g.eff = dEff <= 0.0005 ? 2 : (dEff <= 0.0025 ? 1 : 0); g.effT = dEff <= 0.0005 ? 'Beste' : '+' + nf(dEff * 100, 2) + ' Pkt.';
+    var rel = minCost > 0 ? (a.costNet - minCost) / minCost : 0; g.cost = rel <= 0.03 ? 2 : (rel <= 0.1 ? 1 : 0); g.costT = rel <= 0.0005 ? 'Beste' : '+' + nf(rel * 100, 0) + ' %';
+    var dEk = inv > 0 ? (a.ek - minEk) / inv : 0; g.ek = dEk <= 0.015 ? 2 : (dEk <= 0.04 ? 1 : 0); g.ekT = dEk <= 0.0005 ? 'Beste' : '+' + eur(a.ek - minEk);
+    g.sec = a.fixY >= 10 ? 2 : (a.fixY >= 5 ? 1 : 0); g.secT = a.fixY + ' J.';
+    g.cf = a.cf1 >= 0 ? 2 : (a.cf1 >= -100 ? 1 : 0); g.cfT = (a.cf1 >= 0 ? '+' : '−') + eur(Math.abs(a.cf1));
+    g.score = g.eff * 3 + g.cost * 3 + g.ek + g.sec * 2 + g.cf;
+    return g;
+  }
+  function fvPill(v, t) { return '<span class="pill ' + (v === 2 ? 'good' : v === 1 ? 'warn' : 'bad') + '">' + (v === 2 ? '✓ ' : v === 1 ? '! ' : '✕ ') + t + '</span>'; }
+  function renderFvOut() {
+    var el = $('fv-out'); if (!el) return;
+    var R = fvCalc(), act = R.act;
+    if (act.length < 2) { el.innerHTML = '<p class="note">Trage mindestens zwei Angebote mit Darlehen ein, dann erscheint der Vergleich.</p>'; return; }
+    act.forEach(function (a) { a.g = fvGrade(a, act, R.inv); });
+    var best = act.slice().sort(function (x, y) { return y.g.score - x.g.score || x.costNet - y.costNet; })[0];
+    var row = function (l, fn, cls) { return '<tr' + (cls ? ' class="' + cls + '"' : '') + '><td>' + l + '</td>' + act.map(function (a) { return '<td' + (a === best && !cls ? '' : '') + '>' + fn(a) + '</td>'; }).join('') + '</tr>'; };
+    var head = '<tr><th></th>' + act.map(function (a) { return '<th><b>' + 'ABC'.charAt(a.i) + '</b>' + (a === best ? ' ★' : '') + '<br><small>' + esc(a.name.length > 11 ? a.name.slice(0, 10) + '…' : a.name) + '</small></th>'; }).join('') + '</tr>';
+    var tbl = '<div class="tscroll"><table class="dcmp fvt"><thead>' + head + '</thead><tbody>' +
+      row('Fremdkapital', function (a) { return eur(a.fk); }) +
+      row('Eigenkapital', function (a) { return eur(a.ek); }) +
+      row('Disagio', function (a) { return a.D > 0 ? eur(a.D) : '–'; }) +
+      row('Auszahlung', function (a) { return eur(a.fk - a.D); }) +
+      row('Sollzins', function (a) { return nf(a.of.zins, 2) + ' %'; }) +
+      row('Tilgung', function (a) { return nf(a.of.tilg, 2) + ' %'; }) +
+      row('Zinsbindung', function (a) { return a.fixY + ' J.'; }) +
+      row('Rate pro Monat', function (a) { return eur(a.rateM); }) +
+      row('<b>Effektivzins p.a.</b>', function (a) { return '<b>' + (a.eff === null ? '–' : nf(a.eff * 100, 2) + ' %') + '</b>'; }) +
+      row('Zinsen und Disagio, ' + R.T + ' J.', function (a) { return eur(a.cost); }) +
+      row('Kosten nach Steuer, ' + R.T + ' J.', function (a) { return eur(a.costNet); }) +
+      row('Restschuld nach Bindung', function (a) { return eur(a.bal); }) +
+      row('Cashflow n. St. / Mon., Jahr 1', function (a) { return (a.cf1 < 0 ? '−' : '') + eur(Math.abs(a.cf1)); }) +
+      '</tbody></table></div>';
+    var rate = '<h2 style="margin-top:14px">Bewertung</h2><div class="tscroll"><table class="dcmp fvt"><thead>' + head + '</thead><tbody>' +
+      row('Effektivzins', function (a) { return fvPill(a.g.eff, a.g.effT); }) +
+      row('Kosten nach Steuer', function (a) { return fvPill(a.g.cost, a.g.costT); }) +
+      row('Eigenkapital', function (a) { return fvPill(a.g.ek, a.g.ekT); }) +
+      row('Zinsbindung', function (a) { return fvPill(a.g.sec, a.g.secT); }) +
+      row('Cashflow / Mon.', function (a) { return fvPill(a.g.cf, a.g.cfT); }) +
+      row('<b>Punkte</b>', function (a) { return '<b>' + a.g.score + ' von 20</b>'; }) +
+      '</tbody></table></div>';
+    // Balken: Zinsen + Disagio anteilig über den gemeinsamen Zeitraum
+    var mx = Math.max.apply(null, act.map(function (a) { return a.cost; })) * 1.12 || 1, W = 360, lw = 0, bh = 18, gap = 40, H = 14 + act.length * gap;
+    var g = '';
+    act.forEach(function (a, i) {
+      var y = 14 + i * gap, w1 = (W - 8) * a.sumInt / mx, w2 = (W - 8) * a.dPro / mx;
+      g += '<text x="4" y="' + (y - 3) + '" class="t-ink" style="font-size:11.5px">' + esc(a.name) + (a === best ? ' ★' : '') + '</text>' +
+        '<rect x="4" y="' + y + '" width="' + Math.max(2, w1).toFixed(1) + '" height="' + bh + '" rx="4" fill="var(--c1)"><title>Zinsen ' + eur(a.sumInt) + '</title></rect>' +
+        (a.dPro > 0.5 ? '<rect x="' + (4 + w1 + 2).toFixed(1) + '" y="' + y + '" width="' + Math.max(2, w2 - 2).toFixed(1) + '" height="' + bh + '" rx="4" fill="var(--c2)"><title>Disagio anteilig ' + eur(a.dPro) + '</title></rect>' : '') +
+        '<text x="' + Math.min(4 + w1 + w2 + 6, W - 56).toFixed(1) + '" y="' + (y + 13) + '" class="t-ink" style="font-size:11.5px;font-weight:600;stroke:var(--surface);stroke-width:3px;paint-order:stroke">' + nf(Math.round(a.cost), 0) + '</text>';
+    });
+    var chart = '<h2 style="margin-top:14px">Zinsen und Disagio über ' + R.T + ' Jahre</h2><svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc('Zinsen und anteiliges Disagio über ' + R.T + ' Jahre: ' + act.map(function (a) { return a.name + ' ' + eur(a.cost); }).join(', ')) + '" style="width:100%;height:auto;display:block;margin-top:6px">' + g + '</svg>' +
+      '<div class="vrow"><i style="background:var(--c1)"></i><span>Zinsen</span><b></b><span class="p"></span></div><div class="vrow"><i style="background:var(--c2)"></i><span>Disagio, anteilig für diese Jahre</span><b></b><span class="p"></span></div>';
+    // Empfehlung
+    var ranked = act.slice().sort(function (x, y) { return y.g.score - x.g.score || x.costNet - y.costNet; }), run = ranked[1];
+    var close = run.g.score >= best.g.score - 1 && Math.abs((run.eff === null ? 9 : run.eff) - (best.eff === null ? 9 : best.eff)) < 0.0015;
+    var why = [];
+    if (best.g.eff === 2) why.push('den niedrigsten Effektivzins (' + nf(best.eff * 100, 2) + ' %)');
+    if (best.g.cost === 2) why.push('geringe Kosten nach Steuern');
+    if (best.g.sec === 2) why.push('eine Zinsbindung von mindestens zehn Jahren');
+    if (best.g.ek === 2) why.push('einen geringen Eigenkapitalbedarf');
+    var txt = '<b>' + esc(best.name) + '</b> schneidet am besten ab' + (why.length ? ': ' + why.join(', ') : ' (' + best.g.score + ' von 20 Punkten)') + '.';
+    var notes = [];
+    if (close) {
+      var dEk = best.ek - run.ek, dCf = best.cf1 - run.cf1, dCost = run.costNet - best.costNet;
+      notes.push('<b>' + esc(best.name) + '</b> und <b>' + esc(run.name) + '</b> liegen praktisch gleichauf (Effektivzins ' + nf(best.eff * 100, 2) + ' % und ' + nf(run.eff * 100, 2) + ' %). ' +
+        esc(best.name) + ' kostet nach Steuern ' + eur(Math.abs(dCost)) + (dCost >= 0 ? ' weniger' : ' mehr') + ', hat ' + eur(Math.abs(dCf)) + (dCf >= 0 ? ' mehr' : ' weniger') + ' Cashflow pro Monat und braucht ' + eur(Math.abs(dEk)) + (dEk >= 0 ? ' mehr' : ' weniger') + ' Eigenkapital. Entscheide danach, wie viel Eigenkapital du binden willst.');
+    }
+    var lowEff = act.slice().sort(function (x, y) { return (x.eff === null ? 99 : x.eff) - (y.eff === null ? 99 : y.eff); })[0];
+    if (lowEff !== best && !close) notes.push(esc(lowEff.name) + ' hat den niedrigeren Effektivzins, verliert aber bei ' + [lowEff.g.ek < 2 ? 'Eigenkapital' : '', lowEff.g.sec < 2 ? 'Zinsbindung' : '', lowEff.g.cf < 2 ? 'Cashflow' : '', lowEff.g.cost < 2 ? 'Kosten nach Steuer' : ''].filter(Boolean).join(', ') + '.');
+    if (best.D > 0) notes.push('Das Disagio von ' + eur(best.D) + ' erhöht den Eigenkapitalbedarf. Bei vorzeitigem Verkauf oder Ablösung bekommst du es meist nicht zurück.');
+    if (best.fixY < 10) notes.push('Die Zinsbindung endet nach ' + best.fixY + ' Jahren. Plane die Anschlussfinanzierung ein, im Szenario-Reiter siehst du den Effekt höherer Zinsen.');
+    if (best.cf1 < 0) notes.push('Der Cashflow nach Steuern ist im ersten Jahr negativ (' + eur(best.cf1) + ' pro Monat). Prüfe, ob du das aus anderem Einkommen tragen kannst.');
+    if (act.some(function (a) { return a.fixY !== act[0].fixY; })) notes.push('Die Angebote haben unterschiedliche Bindungen. Die Kosten sind deshalb nur über die ersten ' + R.T + ' Jahre verglichen, das Disagio anteilig.');
+    var rec = '<div class="warn" style="margin-top:14px;border-left:4px solid var(--accent)"><b>Empfehlung</b><br>' + txt + (notes.length ? '<ul style="margin:8px 0 0;padding-left:18px">' + notes.map(function (n) { return '<li>' + n + '</li>'; }).join('') + '</ul>' : '') + '</div>' +
+      '<p class="note">Orientierung, keine Finanzierungs- oder Steuerberatung. Nicht enthalten sind Bereitstellungszinsen, Kontoführungsgebühren, Vorfälligkeitsentschädigung und die Wirkung der Steuerprogression. Die Punkte gewichten Effektivzins und Kosten am stärksten.</p>';
+    el.innerHTML = tbl + rate + chart + rec;
+  }
+
   function renderFinanz() {
+    renderFvOut();
     var A = state.assume, S = state.scen, y0 = new Date().getFullYear();
     var inf = state.objs.map(function (o) { return { o: o, f: finInfo(o, A, S) }; });
     var sum = function (fn) { return inf.reduce(function (s, x) { return s + fn(x); }, 0); };
@@ -796,6 +933,7 @@ function finInfo(o, A, S) {
     return (o.reno > 0 ? 'Renovierung ' + eur(o.reno) + ((o.renoYear || 0) <= 0 ? ' beim Kauf, ' : ' in Jahr ' + Math.round(o.renoYear) + ', ') : '') + 'Gesamtinvestition ' + eur(inv) + ', Eigenkapital ' + eur(eq) + (disOf(o) > 0 ? ' (inkl. Disagio ' + eur(disOf(o)) + ')' : '') + ', Beleihung ' + pct(o.price > 0 ? o.loan / o.price : null, 0) + ', Miete ' + (o.area > 0 ? nf(o.rent / o.area, 2) : '–') + ' €/m², Kaufpreis ' + (o.area > 0 ? eur(o.price / o.area) : '–') + '/m²';
   }
   function renderInputs() {
+    renderFvIn();
     $('assume').innerHTML = ASSUME.map(function (f) { return fieldHtml('assume', 0, f, state.assume[f[0]]); }).join('');
     $('cards').innerHTML = state.objs.map(function (o) {
       return '<div class="ocard"><div class="top"><h2>' + esc(o.name) + '</h2><button class="btn" data-del="' + o.id + '"' + (state.objs.length < 2 ? ' disabled' : '') + '>Entfernen</button></div><div class="fields">' +
@@ -820,6 +958,10 @@ function finInfo(o, A, S) {
       if (key === 'horizon') val = Math.min(30, Math.max(5, Math.round(val)));
       state.assume[key] = val;
       state.example = false;
+    } else if (scope === 'fv') {
+      if (key === 'obj') { state.fv.obj = val; }
+      else { var oi = +t.getAttribute('data-oid') - 1; if (state.fv.off[oi]) state.fv.off[oi][key] = val; }
+      if (key === 'obj') renderFvIn();
     } else if (scope === 'scen') {
       state.scen[key] = val;
       var sl = SLIDERS.filter(function (s) { return s[0] === key; })[0];
