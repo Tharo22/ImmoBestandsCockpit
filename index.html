@@ -278,7 +278,7 @@ td.sub, th.sub { color: var(--muted); }
     <details>
       <summary>So wird gerechnet</summary>
       <p class="note">Gesamtinvestition = Kaufpreis plus Kaufnebenkosten. Eigenkapital = Gesamtinvestition minus Darlehen. Der Schuldendienst läuft monatlich: Rate = Darlehen × (Sollzins + Anfangstilgung) ÷ 12. Nach Ende der Zinsbindung gilt der Anschlusszins (Sollzins plus Zinsanstieg im Szenario) und die Anschlusstilgung aus den Annahmen, bezogen auf die dann offene Restschuld.</p>
-      <p class="note">Cashflow = Kaltmiete nach Leerstand minus nicht umlagefähige Kosten und Instandhaltung minus Schuldendienst minus Sanierung. Nettorendite = Nettomiete nach Kosten ÷ Gesamtinvestition. Eigenkapitalrendite = (Cashflow + Tilgung im ersten Jahr) ÷ Eigenkapital. DSCR = Nettomiete ÷ Schuldendienst. Die interne Verzinsung (IRR) rechnet Eigenkapital, jährliche Cashflows und den Verkaufserlös nach Restschuld und Verkaufskosten im Exit-Jahr.</p>
+      <p class="note">Cashflow = Kaltmiete inklusive Garage und Stellplatz nach Leerstand minus nicht umlagefähige Kosten und Instandhaltung minus Schuldendienst minus Sanierung. Nettorendite = Nettomiete nach Kosten ÷ Gesamtinvestition. Eigenkapitalrendite = (Cashflow + Tilgung im ersten Jahr) ÷ Eigenkapital. DSCR = Nettomiete ÷ Schuldendienst. Die interne Verzinsung (IRR) rechnet Eigenkapital, jährliche Cashflows und den Verkaufserlös nach Restschuld und Verkaufskosten im Exit-Jahr.</p>
       <p class="note">Sondertilgung läuft am Jahresende und mindert die Restschuld. Sie zählt nicht zum Cashflow, wohl aber zur Verzinsung des Eigenkapitals. Die AfA ergibt sich aus Kaufpreis plus Nebenkosten mal Gebäudeanteil mal AfA-Satz. Steuer = (Kaltmiete nach Leerstand − nicht umlagefähige Kosten − Zinsen − AfA) × Grenzsteuersatz. Die Instandhaltungsrücklage ist nicht abzugsfähig.</p>
       <p class="note">Renovierung und Sanierung: Fällt sie beim Kauf an (Jahr 0), erhöht sie die Gesamtinvestition und das Eigenkapital, das Darlehen bleibt gleich. Fällt sie später an, mindert sie den Cashflow in diesem Jahr. Die Mehrmiete zählt ab dem Jahr danach. Steuerlich wird die Renovierung hier nicht berücksichtigt, und eine Wertsteigerung ist nicht eingerechnet.</p>
       <p class="note">Das ist eine Modellrechnung und ersetzt keine Steuer- oder Anlageberatung.</p>
@@ -288,6 +288,7 @@ td.sub, th.sub { color: var(--muted); }
 
 <script>
 /*ENGINE*/
+function rentOf(o) { return (o.rent || 0) + (o.garage || 0); }
 function invOf(o) { return o.price * (1 + o.nk / 100) + ((o.renoYear || 0) <= 0 ? (o.reno || 0) : 0); }
 function simObj(o, A, S, years) {
   var g = A.rentG / 100, cg = A.costG / 100, vg = A.valueG / 100, tx = (A.grenz || 0) / 100;
@@ -308,7 +309,7 @@ function simObj(o, A, S, years) {
     }
     var sp = Math.min(bal, Math.max(0, o.sonder || 0));
     bal -= sp;
-    var rent = (o.rent + (y > Math.max(0, o.renoYear || 0) ? (o.renoRent || 0) : 0)) * 12 * Math.pow(1 + g, y - 1) * (1 - vac / 100);
+    var rent = (rentOf(o) + (y > Math.max(0, o.renoYear || 0) ? (o.renoRent || 0) : 0)) * 12 * Math.pow(1 + g, y - 1) * (1 - vac / 100);
     var nonRecY = o.nonRec * 12 * Math.pow(1 + cg, y - 1);
     var opex = nonRecY + o.maint * o.area * Math.pow(1 + cg, y - 1);
     var capex = (y === S.capexYear ? S.capex * o.area : 0) + (y === Math.round(o.renoYear || 0) && y >= 1 ? (o.reno || 0) : 0);
@@ -405,7 +406,7 @@ function finInfo(o, A, S) {
   var payAfterS = balFix * (Math.max(0, o.zins + S.dZins) / 100 + A.anTilg / 100) / 12;
   var payoff = null;
   if (o.loan > 0) for (var j = 0; j < 50; j++) if (rows[j].bal <= 0.005) { payoff = j + 1; break; }
-  var noi = r1.rent - r1.opex, inv = invOf(o), eq = Math.max(0, inv - o.loan + disOf(o)), gross = o.rent * 12;
+  var noi = r1.rent - r1.opex, inv = invOf(o), eq = Math.max(0, inv - o.loan + disOf(o)), gross = rentOf(o) * 12;
   return {
     rows: rows, fixY: fixY, rateM: rateM, int1: r1.int, tilg1: r1.pr, sp1: r1.sp, sumInt: sumInt, balFix: balFix,
     payAfter0: payAfter0, payAfterS: payAfterS, payoff: payoff, eff: Math.pow(1 + o.zins / 1200, 12) - 1,
@@ -422,7 +423,7 @@ function finInfo(o, A, S) {
   var FIELDS = [
     ['name', 'Bezeichnung', 'text'], ['price', 'Kaufpreis (€)', 1000], ['nk', 'Kaufnebenkosten (%)', 0.1], ['area', 'Wohnfläche (m²)', 1],
     ['loan', 'Darlehen (€)', 1000], ['zins', 'Sollzins (% p.a.)', 0.05], ['tilg', 'Anfangstilgung (% p.a.)', 0.1], ['fix', 'Zinsbindung (Jahre)', 1], ['dis', 'Disagio (% vom Darlehen)', 0.1],
-    ['rent', 'Kaltmiete (€/Monat)', 10], ['nonRec', 'Nicht umlagefähig (€/Monat)', 5], ['maint', 'Instandhaltung (€/m² und Jahr)', 1], ['vac', 'Leerstand (% der Miete)', 0.5],
+    ['rent', 'Kaltmiete Wohnung (€/Monat)', 10], ['garage', 'Garage und Stellplatz (€/Monat)', 5], ['nonRec', 'Nicht umlagefähig (€/Monat)', 5], ['maint', 'Instandhaltung (€/m² und Jahr)', 1], ['vac', 'Leerstand (% der Miete)', 0.5],
     ['sonder', 'Sondertilgung (€ pro Jahr)', 100], ['geb', 'Gebäudeanteil am Kaufpreis (%)', 1], ['afa', 'AfA-Satz (%)', 0.1],
     ['fixEnd', 'Zinsbindung endet am (optional)', 'date'], ['reno', 'Renovierung und Sanierung (€)', 1000], ['renoYear', 'Renovierung im Jahr (0 = beim Kauf)', 1], ['renoRent', 'Mehrmiete danach (€/Monat)', 10]
   ];
@@ -607,7 +608,7 @@ function finInfo(o, A, S) {
     var noi = sum(function (k) { return k.noi; }), ds = sum(function (k) { return k.ds; }), inv = sum(function (k) { return k.inv; }), cf = sum(function (k) { return k.cf; });
     var cfA = sum(function (k) { return k.cfAfter; }), tax = sum(function (k) { return k.tax; });
     var pr1 = ev.tot[0].pr, loan = state.objs.reduce(function (s, o) { return s + o.loan; }, 0);
-    var price = state.objs.reduce(function (s, o) { return s + o.price; }, 0), rentY = state.objs.reduce(function (s, o) { return s + o.rent * 12; }, 0);
+    var price = state.objs.reduce(function (s, o) { return s + o.price; }, 0), rentY = state.objs.reduce(function (s, o) { return s + rentOf(o) * 12; }, 0);
     var renoT = state.objs.reduce(function (a, o) { return a + (o.reno || 0); }, 0), renoNow = state.objs.reduce(function (a, o) { return a + ((o.renoYear || 0) <= 0 ? (o.reno || 0) : 0); }, 0), renoMieteT = state.objs.reduce(function (a, o) { return a + (o.reno > 0 ? (o.renoRent || 0) : 0); }, 0);
     var ekr = ev.eq > 0 ? (cf + pr1) / ev.eq : null, dscr = ds > 0 ? noi / ds : null;
     var repaid = loan > 0 ? 1 - ev.tot[9].bal / loan : null;
@@ -626,10 +627,10 @@ function finInfo(o, A, S) {
     vizPortfolio(ev, ks, inv, loan);
     var rows = ev.per.map(function (p, i) {
       var k = ks[i], o = p.o;
-      return '<tr><td>' + esc(o.name) + '</td><td>' + eur(o.price) + '</td><td>' + eur(o.rent) + '</td><td class="' + neg(k.cf).trim() + '">' + eur(k.cf / 12) + '</td><td class="' + neg(k.cfAfter).trim() + '">' + eur(k.cfAfter / 12) + '</td><td>' + pct(k.net) + '</td><td>' + pct(k.ekr) + '</td><td>' + (k.dscr === null ? '–' : nf(k.dscr, 2)) + '</td><td>' + statusDscr(k.dscr) + '</td></tr>';
+      return '<tr><td>' + esc(o.name) + '</td><td>' + eur(o.price) + '</td><td>' + eur(rentOf(o)) + '</td><td class="' + neg(k.cf).trim() + '">' + eur(k.cf / 12) + '</td><td class="' + neg(k.cfAfter).trim() + '">' + eur(k.cfAfter / 12) + '</td><td>' + pct(k.net) + '</td><td>' + pct(k.ekr) + '</td><td>' + (k.dscr === null ? '–' : nf(k.dscr, 2)) + '</td><td>' + statusDscr(k.dscr) + '</td></tr>';
     }).join('');
-    var totalRow = '<tr class="total"><td>Gesamt</td><td>' + eur(price) + '</td><td>' + eur(state.objs.reduce(function (s, o) { return s + o.rent; }, 0)) + '</td><td class="' + neg(cf).trim() + '">' + eur(cf / 12) + '</td><td class="' + neg(cfA).trim() + '">' + eur(cfA / 12) + '</td><td>' + pct(inv > 0 ? noi / inv : null) + '</td><td>' + pct(ekr) + '</td><td>' + (dscr === null ? '–' : nf(dscr, 2)) + '</td><td>' + statusDscr(dscr) + '</td></tr>';
-    $('tbl-portfolio').innerHTML = '<table><thead><tr><th>Objekt</th><th>Kaufpreis</th><th>Kaltmiete/Mon.</th><th>Cashflow/Mon.</th><th>CF n. Steuern/Mon.</th><th>Nettorendite</th><th>EK-Rendite</th><th>DSCR</th><th>Status</th></tr></thead><tbody>' + rows + totalRow + '</tbody></table>';
+    var totalRow = '<tr class="total"><td>Gesamt</td><td>' + eur(price) + '</td><td>' + eur(state.objs.reduce(function (s, o) { return s + rentOf(o); }, 0)) + '</td><td class="' + neg(cf).trim() + '">' + eur(cf / 12) + '</td><td class="' + neg(cfA).trim() + '">' + eur(cfA / 12) + '</td><td>' + pct(inv > 0 ? noi / inv : null) + '</td><td>' + pct(ekr) + '</td><td>' + (dscr === null ? '–' : nf(dscr, 2)) + '</td><td>' + statusDscr(dscr) + '</td></tr>';
+    $('tbl-portfolio').innerHTML = '<table><thead><tr><th>Objekt</th><th>Kaufpreis</th><th>Miete/Mon.</th><th>Cashflow/Mon.</th><th>CF n. Steuern/Mon.</th><th>Nettorendite</th><th>EK-Rendite</th><th>DSCR</th><th>Status</th></tr></thead><tbody>' + rows + totalRow + '</tbody></table>';
     var H = A.horizon;
     var val = [price], bal = [loan];
     for (var t = 0; t < H; t++) { val.push(ev.tot[t].value); bal.push(ev.tot[t].bal); }
@@ -969,7 +970,7 @@ function finInfo(o, A, S) {
       else if (be.k === 'neg') beTxt = 'schon negativ';
       else if (be.k === 'nodebt') beTxt = 'kein Darlehen';
       else beTxt = 'nach Exit';
-      var gross = o.rent * 12, vacMax = gross > 0 ? 1 - (r1.opex + r1.ds) / gross : null;
+      var gross = rentOf(o) * 12, vacMax = gross > 0 ? 1 - (r1.opex + r1.ds) / gross : null;
       var vacTxt = vacMax === null ? '–' : vacMax < 0 ? 'kein Puffer' : pct(vacMax, 0);
       return '<tr><td>' + esc(o.name) + '</td><td class="' + neg(r1.cf).trim() + '">' + eur(r1.cf / 12) + '</td><td class="' + (afterCf !== null ? neg(afterCf).trim() : '') + '">' + (afterCf === null ? '–' : eur(afterCf)) + '</td><td>' + beTxt + '</td><td>' + vacTxt + '</td><td>' + eur(p.need) + '</td><td>' + pct(p.irr) + '</td><td>' + statusStress(p.minCf) + '</td></tr>';
     }).join('');
@@ -995,7 +996,7 @@ function finInfo(o, A, S) {
   }
   function derivedText(o) {
     var inv = invOf(o), eq = inv - o.loan + disOf(o);
-    return (o.reno > 0 ? 'Renovierung ' + eur(o.reno) + ((o.renoYear || 0) <= 0 ? ' beim Kauf, ' : ' in Jahr ' + Math.round(o.renoYear) + ', ') : '') + 'Gesamtinvestition ' + eur(inv) + ', Eigenkapital ' + eur(eq) + (disOf(o) > 0 ? ' (inkl. Disagio ' + eur(disOf(o)) + ')' : '') + ', Beleihung ' + pct(o.price > 0 ? o.loan / o.price : null, 0) + ', Miete ' + (o.area > 0 ? nf(o.rent / o.area, 2) : '–') + ' €/m², Kaufpreis ' + (o.area > 0 ? eur(o.price / o.area) : '–') + '/m²';
+    return (o.reno > 0 ? 'Renovierung ' + eur(o.reno) + ((o.renoYear || 0) <= 0 ? ' beim Kauf, ' : ' in Jahr ' + Math.round(o.renoYear) + ', ') : '') + 'Gesamtinvestition ' + eur(inv) + ', Eigenkapital ' + eur(eq) + (disOf(o) > 0 ? ' (inkl. Disagio ' + eur(disOf(o)) + ')' : '') + ', Beleihung ' + pct(o.price > 0 ? o.loan / o.price : null, 0) + ', Miete ' + (o.area > 0 ? nf(o.rent / o.area, 2) : '–') + ' €/m²' + (o.garage > 0 ? ' plus Garage ' + eur(o.garage) + ', gesamt ' + eur(rentOf(o)) + ' pro Monat' : '') + ', Kaufpreis ' + (o.area > 0 ? eur(o.price / o.area) : '–') + '/m²';
   }
   function renderInputs() {
     renderFvIn();
@@ -1090,7 +1091,7 @@ function finInfo(o, A, S) {
 function applyTransfer(p){
   const n=v=>isFinite(+v)?+v:0;
   const o={id:state.nextId++,name:p.name||'Neues Objekt',price:n(p.kp),nk:n(p.nkPct)||10.6,area:n(p.qm),loan:Math.round(n(p.kp)*0.9),zins:3.6,tilg:2,fix:10,
-    rent:n(p.kalt)+n(p.stell),nonRec:n(p.hgNicht),maint:12,vac:2,sonder:0,geb:80,afa:n(p.bj)>0&&n(p.bj)<1925?2.5:(n(p.bj)>=2023?3:2)};
+    rent:n(p.kalt),garage:n(p.stell),nonRec:n(p.hgNicht),maint:12,vac:2,sonder:0,geb:80,afa:n(p.bj)>0&&n(p.bj)<1925?2.5:(n(p.bj)>=2023?3:2)};
   if(state.example) state.objs=[o]; else state.objs.push(o);
   state.example=false; save(); renderInputs(); renderOutputs(); show('objekte');
   return 'Objekt „'+esc(o.name)+'“ angelegt. Darlehen (90 %), Zins und Tilgung sind Annahmen. Bitte anpassen.';
