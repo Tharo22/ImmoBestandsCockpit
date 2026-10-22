@@ -474,7 +474,7 @@ function finInfo(o, A, S) {
     } catch (e) { return null; }
   }
   function mkFv(o) {
-    var b = { loan: o.loan, dis: 0, zins: o.zins, tilg: o.tilg, fix: o.fix, sonder: o.sonder || 0 };
+    var b = { effMode: 'calc', effMan: 0, loan: o.loan, dis: 0, zins: o.zins, tilg: o.tilg, fix: o.fix, sonder: o.sonder || 0 };
     return { obj: o.id, off: [
       Object.assign({ n: 'Bank A' }, b),
       Object.assign({ n: 'Bank B (Disagio)' }, b, { dis: 3, zins: Math.max(0, +(o.zins - 0.5).toFixed(2)) }),
@@ -495,7 +495,7 @@ function finInfo(o, A, S) {
     s.assume.horizon = Math.min(30, Math.max(5, Math.round(s.assume.horizon)));
     s.example = !!s.example;
     if (!s.fv || !Array.isArray(s.fv.off) || s.fv.off.length !== 3) s.fv = mkFv(s.objs[0]);
-    s.fv.off = s.fv.off.map(function (x) { var r = { n: String(x.n || 'Angebot') }; ['loan', 'dis', 'zins', 'tilg', 'fix', 'sonder'].forEach(function (k) { r[k] = Number(x[k]) || 0; }); return r; });
+    s.fv.off = s.fv.off.map(function (x) { var r = { n: String(x.n || 'Angebot'), effMode: x.effMode === 'manual' ? 'manual' : 'calc' }; ['loan', 'dis', 'zins', 'tilg', 'fix', 'sonder', 'effMan'].forEach(function (k) { r[k] = Number(x[k]) || 0; }); return r; });
     if (!s.objs.some(function (o) { return o.id === s.fv.obj; })) s.fv.obj = s.objs[0].id;
     return s;
   }
@@ -706,9 +706,14 @@ function finInfo(o, A, S) {
   }
   function renderFvIn() {
     var o = fvObj(), el = $('fv-in'); if (!el) return;
+    var openSt = [].map.call(el.querySelectorAll('details'), function (d) { return d.open; });
     el.innerHTML = '<label class="fld" for="fv-obj">Objekt<select id="fv-obj" data-scope="fv" data-key="obj">' + state.objs.map(function (x) { return '<option value="' + x.id + '"' + (x.id === o.id ? ' selected' : '') + '>' + esc(x.name) + '</option>'; }).join('') + '</select></label>' +
       state.fv.off.map(function (of, i) {
-        return '<details class="ocard"><summary><b>Angebot ' + 'ABC'.charAt(i) + '</b> · ' + esc(of.n) + '</summary><div class="fields">' + FVF.map(function (f) { return fieldHtml('fv', i + 1, f, of[f[0]]); }).join('') + '</div></details>';
+        var man = of.effMode === 'manual', id = 'fv-' + (i + 1) + '-effMode';
+        return '<details class="ocard"' + (openSt[i] ? ' open' : '') + '><summary><b>Angebot ' + 'ABC'.charAt(i) + '</b> · ' + esc(of.n) + '</summary><div class="fields">' + FVF.map(function (f) { return fieldHtml('fv', i + 1, f, of[f[0]]); }).join('') +
+          '<label class="fld" for="' + id + '">Effektivzins<select id="' + id + '" data-scope="fv" data-oid="' + (i + 1) + '" data-key="effMode"><option value="calc"' + (man ? '' : ' selected') + '>Berechnet</option><option value="manual"' + (man ? ' selected' : '') + '>Manuell eingeben</option></select></label>' +
+          (man ? fieldHtml('fv', i + 1, ['effMan', 'Effektivzins laut Bank (% p.a.)', 0.01], of.effMan) : '') +
+          '</div><div class="derived" id="fv-d-' + i + '"></div></details>';
       }).join('');
   }
   function fvCalc() {
@@ -720,7 +725,7 @@ function finInfo(o, A, S) {
       var rateM = of.loan * (of.zins + of.tilg) / 1200, r1 = rows[0];
       var noi = r1.rent - r1.opex;
       return { i: i, name: of.n || ('Angebot ' + 'ABC'.charAt(i)), of: of, o: o, rows: rows, fixY: fixY, D: D, fk: of.loan, ek: Math.max(0, inv - of.loan + D), rateM: rateM,
-        eff: effRate(o, rows, fixY), bal: fixY > 0 ? rows[fixY - 1].bal : of.loan, cf1: r1.cfAfter / 12, dscr: r1.ds > 0 ? noi / r1.ds : null };
+        effCalc: effRate(o, rows, fixY), eff: of.effMode === 'manual' ? (of.effMan > 0 ? of.effMan / 100 : null) : effRate(o, rows, fixY), man: of.effMode === 'manual', bal: fixY > 0 ? rows[fixY - 1].bal : of.loan, cf1: r1.cfAfter / 12, dscr: r1.ds > 0 ? noi / r1.ds : null };
     });
     var act = offs.filter(Boolean);
     if (!act.length) return { act: [], inv: inv };
@@ -747,6 +752,8 @@ function finInfo(o, A, S) {
   function renderFvOut() {
     var el = $('fv-out'); if (!el) return;
     var R = fvCalc(), act = R.act;
+    state.fv.off.forEach(function (of, i) { var d = $('fv-d-' + i); if (!d) return; var a = act.filter(function (x) { return x.i === i; })[0];
+      d.textContent = !a ? 'Ohne Darlehen, das Angebot wird ignoriert.' : (a.man ? 'Manuell: ' + (a.eff === null ? 'noch kein Wert' : nf(a.eff * 100, 2) + ' %') + '. Berechnet aus Sollzins, Disagio und Bindung wären es ' + (a.effCalc === null ? '–' : nf(a.effCalc * 100, 2) + ' %') + '.' : 'Berechnet aus Sollzins, Disagio und Bindung: ' + (a.effCalc === null ? '–' : nf(a.effCalc * 100, 2) + ' %') + '.'); });
     if (act.length < 2) { el.innerHTML = '<p class="note">Trage mindestens zwei Angebote mit Darlehen ein, dann erscheint der Vergleich.</p>'; return; }
     act.forEach(function (a) { a.g = fvGrade(a, act, R.inv); });
     var best = act.slice().sort(function (x, y) { return y.g.score - x.g.score || x.costNet - y.costNet; })[0];
@@ -761,7 +768,7 @@ function finInfo(o, A, S) {
       row('Tilgung', function (a) { return nf(a.of.tilg, 2) + ' %'; }) +
       row('Zinsbindung', function (a) { return a.fixY + ' J.'; }) +
       row('Rate pro Monat', function (a) { return eur(a.rateM); }) +
-      row('<b>Effektivzins p.a.</b>', function (a) { return '<b>' + (a.eff === null ? '–' : nf(a.eff * 100, 2) + ' %') + '</b>'; }) +
+      row('<b>Effektivzins p.a.</b>', function (a) { return '<b>' + (a.eff === null ? '–' : nf(a.eff * 100, 2) + ' %') + '</b>' + (a.man ? '<br><small style="color:var(--muted)">manuell</small>' : ''); }) +
       row('Zinsen und Disagio, ' + R.T + ' J.', function (a) { return eur(a.cost); }) +
       row('Kosten nach Steuer, ' + R.T + ' J.', function (a) { return eur(a.costNet); }) +
       row('Restschuld nach Bindung', function (a) { return eur(a.bal); }) +
@@ -809,7 +816,7 @@ function finInfo(o, A, S) {
     if (best.cf1 < 0) notes.push('Der Cashflow nach Steuern ist im ersten Jahr negativ (' + eur(best.cf1) + ' pro Monat). Prüfe, ob du das aus anderem Einkommen tragen kannst.');
     if (act.some(function (a) { return a.fixY !== act[0].fixY; })) notes.push('Die Angebote haben unterschiedliche Bindungen. Die Kosten sind deshalb nur über die ersten ' + R.T + ' Jahre verglichen, das Disagio anteilig.');
     var rec = '<div class="warn" style="margin-top:14px;border-left:4px solid var(--accent)"><b>Empfehlung</b><br>' + txt + (notes.length ? '<ul style="margin:8px 0 0;padding-left:18px">' + notes.map(function (n) { return '<li>' + n + '</li>'; }).join('') + '</ul>' : '') + '</div>' +
-      '<p class="note">Orientierung, keine Finanzierungs- oder Steuerberatung. Nicht enthalten sind Bereitstellungszinsen, Kontoführungsgebühren, Vorfälligkeitsentschädigung und die Wirkung der Steuerprogression. Die Punkte gewichten Effektivzins und Kosten am stärksten.</p>';
+      '<p class="note">Orientierung, keine Finanzierungs- oder Steuerberatung. Nicht enthalten sind Bereitstellungszinsen, Kontoführungsgebühren, Vorfälligkeitsentschädigung und die Wirkung der Steuerprogression. Die Punkte gewichten Effektivzins und Kosten am stärksten.' + (act.some(function (a) { return a.man; }) ? ' Manuell eingegebene Effektivzinsen gehen so in die Bewertung ein. Die Kosten in Euro stammen weiterhin aus dem Tilgungsplan mit dem Sollzins.' : '') + '</p>';
     el.innerHTML = tbl + rate + chart + rec;
   }
 
@@ -946,7 +953,7 @@ function finInfo(o, A, S) {
     var t = e.target, scope = t.getAttribute && t.getAttribute('data-scope');
     if (!scope) return;
     var key = t.getAttribute('data-key');
-    var val = (t.type === 'text' || t.type === 'date') ? t.value : (parseFloat(t.value) || 0);
+    var val = (t.type === 'text' || t.type === 'date' || t.tagName === 'SELECT' && t.getAttribute('data-key') === 'effMode') ? t.value : (parseFloat(t.value) || 0);
     if (scope === 'obj') {
       var o = state.objs.filter(function (x) { return String(x.id) === t.getAttribute('data-oid'); })[0];
       if (!o) return;
@@ -961,7 +968,7 @@ function finInfo(o, A, S) {
     } else if (scope === 'fv') {
       if (key === 'obj') { state.fv.obj = val; }
       else { var oi = +t.getAttribute('data-oid') - 1; if (state.fv.off[oi]) state.fv.off[oi][key] = val; }
-      if (key === 'obj') renderFvIn();
+      if (key === 'obj' || key === 'effMode') renderFvIn();
     } else if (scope === 'scen') {
       state.scen[key] = val;
       var sl = SLIDERS.filter(function (s) { return s[0] === key; })[0];
