@@ -58,6 +58,17 @@ details.fold.ocard>.fbody{gap:14px}
 .debtviz svg,#fv-out>svg{max-width:640px;margin-inline:auto}
 
 .tabs{position:static;padding-top:0}
+.fld.req.miss input{border-color:var(--bad);background:var(--bad-bg)}
+.reqm{color:var(--bad);font-weight:700}
+.reqnote{margin:-2px 0 0;font-size:.75rem}
+details.more{background:var(--surface-2);border:1px dashed var(--line);padding:0}
+details.more>summary{display:flex;flex-direction:column;gap:2px;padding:10px 14px;margin:0!important;min-height:44px;font-weight:500}
+details.more>summary .fsum{font-size:.78rem;font-weight:400;color:var(--muted);overflow-wrap:anywhere}
+details.more[open]>summary{border-bottom:1px dashed var(--line)}
+details.more>.fbody{padding:14px;display:flex;flex-direction:column;gap:12px}
+.viewrow{display:flex;align-items:center;gap:8px;padding:6px 2px 8px;border-bottom:1px solid var(--line);font-size:.8rem;color:var(--muted)}
+.viewrow select{flex:1;min-width:0;font:inherit;font-size:.9rem;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px 8px;min-height:36px}
+.viewrow[hidden]{display:none}
 .stick{position:sticky;top:0;z-index:6;background:var(--bg);padding-top:6px;margin:0 -2px;padding-inline:2px}
 .strip{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center;padding:7px 2px 8px;font-size:.82rem;color:var(--muted);font-variant-numeric:tabular-nums;border-bottom:1px solid var(--line)}
 .strip b{font-family:var(--font-num);font-weight:600;color:var(--ink)}
@@ -210,6 +221,7 @@ td.sub, th.sub { color: var(--muted); }
     <button class="tab" role="tab" id="t-objekte" aria-controls="p-objekte" aria-selected="false" data-tab="objekte">Objekte</button>
   </div>
     <div class="strip" id="strip" aria-label="Kurzüberblick"></div>
+    <div class="viewrow" id="viewrow"><label for="viewSel">Ansicht</label><select id="viewSel" aria-label="Objekt für die Ansicht wählen"></select></div>
   </div>
 
   <section role="tabpanel" id="p-portfolio" aria-labelledby="t-portfolio">
@@ -647,13 +659,13 @@ function finInfo(o, A, S) {
   }
 
   function renderPortfolio() {
-    var A = state.assume, ev = evaluate(state.objs, A, S0), ks = ev.per.map(kpiOf);
+    var A = state.assume, VO = viewObjs(), ev = evaluate(VO, A, S0), ks = ev.per.map(kpiOf);
     var sum = function (f) { return ks.reduce(function (s, k) { return s + f(k); }, 0); };
     var noi = sum(function (k) { return k.noi; }), ds = sum(function (k) { return k.ds; }), inv = sum(function (k) { return k.inv; }), cf = sum(function (k) { return k.cf; });
     var cfA = sum(function (k) { return k.cfAfter; }), tax = sum(function (k) { return k.tax; });
-    var pr1 = ev.tot[0].pr, loan = state.objs.reduce(function (s, o) { return s + o.loan; }, 0);
-    var price = state.objs.reduce(function (s, o) { return s + o.price; }, 0), rentY = state.objs.reduce(function (s, o) { return s + rentOf(o) * 12; }, 0);
-    var renoT = state.objs.reduce(function (a, o) { return a + (o.reno || 0); }, 0), renoNow = state.objs.reduce(function (a, o) { return a + ((o.renoYear || 0) <= 0 ? (o.reno || 0) : 0); }, 0), renoMieteT = state.objs.reduce(function (a, o) { return a + (o.reno > 0 ? (o.renoRent || 0) : 0); }, 0);
+    var pr1 = ev.tot[0].pr, loan = VO.reduce(function (s, o) { return s + o.loan; }, 0);
+    var price = VO.reduce(function (s, o) { return s + o.price; }, 0), rentY = VO.reduce(function (s, o) { return s + rentOf(o) * 12; }, 0);
+    var renoT = VO.reduce(function (a, o) { return a + (o.reno || 0); }, 0), renoNow = VO.reduce(function (a, o) { return a + ((o.renoYear || 0) <= 0 ? (o.reno || 0) : 0); }, 0), renoMieteT = VO.reduce(function (a, o) { return a + (o.reno > 0 ? (o.renoRent || 0) : 0); }, 0);
     var ekr = ev.eq > 0 ? (cf + pr1) / ev.eq : null, dscr = ds > 0 ? noi / ds : null;
     var repaid = loan > 0 ? 1 - ev.tot[9].bal / loan : null;
     var main = kpi('Cashflow pro Monat vor Steuern', eur(cf / 12), nf(cf, 0) + ' € pro Jahr', cf < 0) +
@@ -668,13 +680,14 @@ function finInfo(o, A, S) {
       kpi('Vermögen im Bestand', eur(price - loan), 'Marktwert minus Darlehen, heute') +
       (renoT > 0 ? kpi('Renovierung und Sanierung', eur(renoT), 'davon beim Kauf ' + eur(renoNow) + (renoMieteT > 0 ? ', Mehrmiete ' + eur(renoMieteT) + ' pro Monat' : '')) : '');
     $('kpi-portfolio').innerHTML = main; $('kpi-more').innerHTML = more;
-    $('strip').innerHTML = '<span>Cashflow <b class="' + (cf < 0 ? 'neg' : '') + '">' + eur(cf / 12) + '</b> pro Monat</span><span>DSCR <b class="' + (dscr !== null && dscr < 1 ? 'neg' : '') + '">' + (dscr === null ? '–' : nf(dscr, 2)) + '</b> ' + statusDscr(dscr) + '</span>';
+    var fo0 = focusObj();
+    $('strip').innerHTML = (fo0 ? '<span><b>' + esc(fo0.name) + '</b></span>' : '') + '<span>Cashflow <b class="' + (cf < 0 ? 'neg' : '') + '">' + eur(cf / 12) + '</b> pro Monat</span><span>DSCR <b class="' + (dscr !== null && dscr < 1 ? 'neg' : '') + '">' + (dscr === null ? '–' : nf(dscr, 2)) + '</b> ' + statusDscr(dscr) + '</span>';
     vizPortfolio(ev, ks, inv, loan);
     var rows = ev.per.map(function (p, i) {
       var k = ks[i], o = p.o;
       return '<tr><td>' + esc(o.name) + '</td><td>' + eur(o.price) + '</td><td>' + eur(rentOf(o)) + '</td><td class="' + neg(k.cf).trim() + '">' + eur(k.cf / 12) + '</td><td class="' + neg(k.cfAfter).trim() + '">' + eur(k.cfAfter / 12) + '</td><td>' + pct(k.net) + '</td><td>' + pct(k.ekr) + '</td><td>' + (k.dscr === null ? '–' : nf(k.dscr, 2)) + '</td><td>' + statusDscr(k.dscr) + '</td></tr>';
     }).join('');
-    var totalRow = '<tr class="total"><td>Gesamt</td><td>' + eur(price) + '</td><td>' + eur(state.objs.reduce(function (s, o) { return s + rentOf(o); }, 0)) + '</td><td class="' + neg(cf).trim() + '">' + eur(cf / 12) + '</td><td class="' + neg(cfA).trim() + '">' + eur(cfA / 12) + '</td><td>' + pct(inv > 0 ? noi / inv : null) + '</td><td>' + pct(ekr) + '</td><td>' + (dscr === null ? '–' : nf(dscr, 2)) + '</td><td>' + statusDscr(dscr) + '</td></tr>';
+    var totalRow = '<tr class="total"><td>Gesamt</td><td>' + eur(price) + '</td><td>' + eur(VO.reduce(function (s, o) { return s + rentOf(o); }, 0)) + '</td><td class="' + neg(cf).trim() + '">' + eur(cf / 12) + '</td><td class="' + neg(cfA).trim() + '">' + eur(cfA / 12) + '</td><td>' + pct(inv > 0 ? noi / inv : null) + '</td><td>' + pct(ekr) + '</td><td>' + (dscr === null ? '–' : nf(dscr, 2)) + '</td><td>' + statusDscr(dscr) + '</td></tr>';
     $('tbl-portfolio').innerHTML = '<table><thead><tr><th>Objekt</th><th>Kaufpreis</th><th>Miete/Mon.</th><th>Cashflow/Mon.</th><th>CF n. Steuern/Mon.</th><th>Nettorendite</th><th>EK-Rendite</th><th>DSCR</th><th>Status</th></tr></thead><tbody>' + rows + totalRow + '</tbody></table>';
     var H = A.horizon;
     var val = [price], bal = [loan];
@@ -941,7 +954,7 @@ function finInfo(o, A, S) {
   function renderFinanz() {
     renderFvOut();
     var A = state.assume, S = state.scen, y0 = new Date().getFullYear();
-    var inf = state.objs.map(function (o) { return { o: o, f: finInfo(o, A, S) }; });
+    var inf = viewObjs().map(function (o) { return { o: o, f: finInfo(o, A, S) }; });
     var sum = function (fn) { return inf.reduce(function (s, x) { return s + fn(x); }, 0); };
     var loan = sum(function (x) { return x.o.loan; }), price = sum(function (x) { return x.o.price; }), invT = sum(function (x) { return x.f.inv; });
     var wz = loan > 0 ? sum(function (x) { return x.o.loan * x.o.zins; }) / loan : 0;
@@ -1007,7 +1020,7 @@ function finInfo(o, A, S) {
 
   function renderScenarios() {
     var A = state.assume, S = state.scen, H = A.horizon;
-    var base = evaluate(state.objs, A, S0), sc = evaluate(state.objs, A, S);
+    var base = evaluate(viewObjs(), A, S0), sc = evaluate(viewObjs(), A, S);
     var d = function (a, b) { return (b - a >= 0 ? '+' : '−') + eur(Math.abs(b - a)); };
     $('kpi-szen').innerHTML =
       kpi('Cashflow über ' + H + ' Jahre', eur(sc.cumTotal), 'Basis ' + eur(base.cumTotal) + ' (' + d(base.cumTotal, sc.cumTotal) + ')', sc.cumTotal < 0) +
@@ -1041,6 +1054,7 @@ function finInfo(o, A, S) {
   function renderBanner() { $('banner').hidden = !state.example; }
   function renderOutputs() {
     renderBanner();
+    renderViewSel();
     renderPortfolio();
     renderScenarios();
     if (tab === 'finanzierung') renderFinanz();
@@ -1069,6 +1083,25 @@ function finInfo(o, A, S) {
   var FOLD_CLOSED = { 'weitere-kennzahlen': 1, 'annahmen-fuer-alle-objekte': 1, 'finanzierungsvergleich': 1, 'aus-anderen-apps-uebernehmen': 1 };
   var FOLD_HINT = { 'annahmen-fuer-alle-objekte': 'Mietwachstum, Kosten, Wertentwicklung, Steuersatz', 'finanzierungsvergleich': 'Bis zu drei Angebote mit Bewertung', 'aus-anderen-apps-uebernehmen': 'Renovierung und Besichtigung', 'objekte-im-ueberblick': 'Tabelle mit Status je Objekt', 'weitere-kennzahlen': 'Nettorendite, Beleihung, Restschuld, Kaufpreisfaktor und mehr', 'zinsbindung-und-anschlussfinanzierung': 'Raten nach Ende der Bindung' };
   function slug(t) { return String(t).toLowerCase().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); }
+  function viewObjs() {
+    var f = UI.focus;
+    if (f && f !== 'all') { var o = state.objs.filter(function (x) { return String(x.id) === String(f); }); if (o.length) return o; }
+    return state.objs;
+  }
+  function focusObj() { var v = viewObjs(); return v.length === 1 && state.objs.length > 1 ? v[0] : null; }
+  function renderViewSel() {
+    var sel = $('viewSel'), row = $('viewrow'); if (!sel) return;
+    var fo = focusObj(); if (!fo && UI.focus && UI.focus !== 'all') UI.focus = 'all';
+    sel.innerHTML = '<option value="all">Alle Objekte</option>' + state.objs.map(function (o) { return '<option value="' + o.id + '"' + (fo && fo.id === o.id ? ' selected' : '') + '>' + esc(o.name) + '</option>'; }).join('');
+    if (!fo) sel.value = 'all';
+    row.hidden = state.objs.length < 2 || tab === 'objekte';
+  }
+  document.addEventListener('change', function (e) {
+    if (!e.target || e.target.id !== 'viewSel') return;
+    UI.focus = e.target.value; try { localStorage.setItem(UIKEY, JSON.stringify(UI)); } catch (x) {}
+    var fo = focusObj(); if (fo) { state.fv.obj = fo.id; save(); renderFvIn(); }
+    renderOutputs();
+  });
   function foldify() {
     [].forEach.call(document.querySelectorAll('section[role="tabpanel"] > .panel'), function (pn) {
       var h = pn.firstElementChild; if (!h || h.tagName !== 'H2' || pn.classList.contains('vz')) return;
@@ -1087,12 +1120,26 @@ function finInfo(o, A, S) {
     });
   }
   function objSum(o) { return eur(o.price) + ' · Miete ' + eur(rentOf(o)) + ' · Darlehen ' + eur(o.loan); }
-  var GROUPS = [['Objekt und Kauf', ['name', 'price', 'nk', 'area']], ['Finanzierung', ['loan', 'zins', 'tilg', 'fix', 'dis', 'fixEnd', 'sonder']], ['Miete und Kosten', ['rent', 'garage', 'nonRec', 'maint', 'vac']], ['Steuer', ['geb', 'afa']], ['Sanierung', ['reno', 'renoYear', 'renoRent']]];
+  var REQ = { price: 1, area: 1, loan: 0, rent: 1 };
+  var GROUPS = [['Objekt und Kauf', ['name', 'price', 'nk', 'area']], ['Finanzierung', ['loan', 'zins', 'tilg', 'fix']], ['Miete und Kosten', ['rent', 'garage', 'nonRec', 'maint', 'vac']]];
+  var MORE = [['Finanzierung, Besonderheiten', ['dis', 'fixEnd', 'sonder']], ['Steuer', ['geb', 'afa']], ['Sanierung', ['reno', 'renoYear', 'renoRent']]];
+  function reqField(f, o) {
+    var h = fieldHtml('obj', o.id, f, o[f[0]]);
+    if (!Object.prototype.hasOwnProperty.call(REQ, f[0])) return h;
+    return h.replace('<label class="fld"', '<label class="fld req' + (o[f[0]] > 0 || (f[0] === 'loan') ? '' : ' miss') + '"').replace(f[1], '<span>' + f[1] + ' <span class="reqm" aria-hidden="true">*</span></span>');
+  }
+  function moreSum(o) {
+    var t = [];
+    if (o.dis > 0) t.push('Disagio ' + nf(o.dis, 1) + ' %'); if (o.sonder > 0) t.push('Sondertilgung ' + eur(o.sonder)); if (o.fixEnd) t.push('Bindung bis ' + o.fixEnd.slice(8, 10) + '.' + o.fixEnd.slice(5, 7) + '.' + o.fixEnd.slice(0, 4));
+    t.push('Gebäudeanteil ' + nf(o.geb, 0) + ' %, AfA ' + nf(o.afa, 1) + ' %'); if (o.reno > 0) t.push('Sanierung ' + eur(o.reno));
+    return t.join(' · ');
+  }
   function objFields(o) {
     var by = {}; FIELDS.forEach(function (f) { by[f[0]] = f; });
-    return GROUPS.map(function (g) {
-      return '<div class="grp">' + g[0] + '</div><div class="fields">' + g[1].filter(function (k) { return by[k]; }).map(function (k) { return fieldHtml('obj', o.id, by[k], o[k]); }).join('') + '</div>';
-    }).join('');
+    var grp = function (g) { return '<div class="grp">' + g[0] + '</div><div class="fields">' + g[1].filter(function (k) { return by[k]; }).map(function (k) { return reqField(by[k], o); }).join('') + '</div>'; };
+    var mid = 'objmore-' + o.id;
+    return GROUPS.map(grp).join('') + '<p class="note reqnote">* Pflichtangaben. Ohne sie ist die Rechnung nicht aussagekräftig.</p>' +
+      '<details class="more" data-fold="' + mid + '"' + (uiOpen(mid, false) ? ' open' : '') + '><summary>Weitere Angaben<span class="fsum" id="ms-' + o.id + '">' + moreSum(o) + '</span></summary><div class="fbody">' + MORE.map(grp).join('') + '</div></details>';
   }
 
   function renderInputs() {
@@ -1118,6 +1165,8 @@ function finInfo(o, A, S) {
       if (key === 'name') { var h = t.closest('.ocard').querySelector('h2'); if (h) h.textContent = val; }
       var dv = $('dv-' + o.id); if (dv) dv.textContent = derivedText(o);
       var fs = $('fs-' + o.id); if (fs) fs.textContent = objSum(o);
+      var ms = $('ms-' + o.id); if (ms) ms.textContent = moreSum(o);
+      if (Object.prototype.hasOwnProperty.call(REQ, key)) { var lb = t.closest('.fld'); if (lb) lb.classList.toggle('miss', !(val > 0)); }
       state.example = false;
     } else if (scope === 'assume') {
       if (key === 'horizon') val = Math.min(30, Math.max(5, Math.round(val)));
