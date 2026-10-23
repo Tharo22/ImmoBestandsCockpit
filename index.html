@@ -37,6 +37,27 @@ svg.chart .sFV1{stroke:var(--c1)}svg.chart .sFV2{stroke:var(--c2)}svg.chart .sFV
 .vrow i{width:10px;height:10px;border-radius:3px;display:block}.vrow b{font-family:var(--font-num);font-weight:600}.vrow span.p{font-family:var(--font-num);color:var(--muted);font-size:.8rem}
 /*ENDVIZ*/
 </style>
+<style>
+/* Einklappbare Bereiche */
+.panel,.kpi,details,.banner{border-radius:10px}
+.tabs{position:sticky;top:0;z-index:5;background:var(--bg);padding-top:6px}
+details.fold{padding:0;overflow:hidden}
+details.fold>summary{list-style:none;display:flex;align-items:center;gap:10px;flex-wrap:wrap;cursor:pointer;min-height:48px;padding:10px 14px;margin:0!important;font-weight:500}
+details.fold>summary::-webkit-details-marker{display:none}
+details.fold>summary::before{content:'';flex:none;width:8px;height:8px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(-45deg);transition:transform .15s}
+details.fold[open]>summary::before{transform:rotate(45deg)}
+details.fold[open]>summary{border-bottom:1px solid var(--line)}
+details.fold>summary h2{margin:0;font-size:1.05rem;flex:1 1 0;min-width:0}
+details.fold>summary .fsum{flex:1 1 100%;order:3;margin-left:18px;font-size:.8rem;font-weight:400;color:var(--muted);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+details.fold>summary .pill{margin-left:auto}
+details.fold>.fbody{padding:14px;display:flex;flex-direction:column;gap:12px;min-width:0}
+details.fold.ocard>.fbody{gap:14px}
+.grp{margin:2px 0 -4px;font-family:var(--font-body);font-size:.72rem;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.foldbar{display:flex;justify-content:flex-end;gap:14px;margin:-6px 0 -8px}
+.lbtn{background:none;border:0;padding:6px 2px;font:inherit;font-size:.82rem;color:var(--muted);text-decoration:underline;cursor:pointer;min-height:32px}
+.debtviz svg,#fv-out>svg{max-width:640px;margin-inline:auto}
+@media (prefers-reduced-motion: reduce){details.fold>summary::before{transition:none}}
+</style>
 <title>Bestands-Cockpit</title>
 <style>
 /* Layout: Arbeitswerkzeug mit Kopfzeile und drei Tabs (Portfolio, Szenarien, Objekte). Oben Kennzahlen, darunter Tabelle und je ein Diagramm. */
@@ -238,6 +259,15 @@ td.sub, th.sub { color: var(--muted); }
   </section>
 
   <section role="tabpanel" id="p-objekte" aria-labelledby="t-objekte" hidden>
+    <div class="cards" id="cards"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" id="add">Objekt hinzufügen</button><button class="btn" id="icsBtn" type="button">Zinsbindungen in den Kalender (.ics)</button></div>
+    <p class="note" id="icsMsg" aria-live="polite"></p>
+    <div class="panel">
+      <h2>Annahmen für alle Objekte</h2>
+      <div class="fields" id="assume"></div>
+    </div>
+    <div class="panel" id="imp-panel">
+      <h2>Aus anderen Apps übernehmen</h2>
     <details id="renBox" style="border:1px solid rgba(128,128,128,.45);border-radius:12px;padding:10px 14px;margin:0 0 14px">
 <summary style="cursor:pointer;font-weight:600;min-height:28px">Renovierungskosten aus der Renovierungs-App übernehmen</summary>
 <p style="margin:8px 0;font-size:13px;opacity:.8">Du kannst die Kosten auch direkt am Objekt von Hand eintragen. Hier holst du sie aus einem Projekt der Renovierungs-App. Übernommen werden die Kosten nach Förderung und die Mehrmiete aus Umlage oder Neuvermietung.</p>
@@ -257,13 +287,7 @@ td.sub, th.sub { color: var(--muted); }
 <div id="impMsg" role="status" style="margin-top:8px;font-size:13px"></div>
 </details>
 
-    <div class="panel">
-      <h2>Annahmen für alle Objekte</h2>
-      <div class="fields" id="assume"></div>
     </div>
-    <div class="cards" id="cards"></div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" id="add">Objekt hinzufügen</button><button class="btn" id="icsBtn" type="button">Zinsbindungen in den Kalender (.ics)</button></div>
-    <p class="note" id="icsMsg" aria-live="polite"></p>
     <details>
       <summary>Daten sichern und wiederherstellen</summary>
       <p class="note">Deine Eingaben liegen nur in diesem Browser. Kopiere den Text und bewahre ihn irgendwo auf, um ihn später hier wieder einzufügen.</p>
@@ -667,7 +691,7 @@ function finInfo(o, A, S) {
     g += '<text x="' + pl + '" y="10" style="font-size:10px">' + fk(mx) + ' € pro Jahr</text>';
     var aria = title + ': Zinsen gesamt ' + eur(sI) + ', Tilgung ' + eur(sT) + (sS > 0 ? ', Sondertilgung ' + eur(sS) : '') + ' über ' + N + ' Jahre. Im ersten Jahr Zinsen ' + eur(rows[0].int) + ' und Tilgung ' + eur(rows[0].pr) + '.';
     var tot = sI + sT + sS;
-    return '<div class="debtviz"><h2>' + esc(title) + '</h2><svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(aria) + '" style="width:100%;height:auto;display:block;margin-top:6px">' + g + lbl + '</svg>' +
+    return '<div class="debtviz">' + (title ? '<h2>' + esc(title) + '</h2>' : '') + '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(aria) + '" style="width:100%;height:auto;display:block;margin-top:6px">' + g + lbl + '</svg>' +
       '<div class="vrow"><i style="background:var(--c2)"></i><span>Zinsen</span><b>' + eur(sI) + '</b><span class="p">' + nf(tot > 0 ? sI / tot * 100 : 0, 0) + ' %</span></div>' +
       '<div class="vrow"><i style="background:var(--c1)"></i><span>Tilgung</span><b>' + eur(sT) + '</b><span class="p">' + nf(tot > 0 ? sT / tot * 100 : 0, 0) + ' %</span></div>' +
       (sS > 0 ? '<div class="vrow"><i style="background:var(--c3)"></i><span>Sondertilgung</span><b>' + eur(sS) + '</b><span class="p">' + nf(sS / tot * 100, 0) + ' %</span></div>' : '') +
@@ -906,14 +930,15 @@ function finInfo(o, A, S) {
     var withLoan = inf.filter(function (x) { return x.o.loan > 0; }), allChart = '';
     if (withLoan.length > 1) {
       var sumRows = []; for (var yi = 0; yi < 50; yi++) { var a = { int: 0, pr: 0, sp: 0, bal: 0 }; withLoan.forEach(function (x) { var r = x.f.rows[yi]; if (r) { a.int += r.int; a.pr += r.pr; a.sp += r.sp; a.bal += r.bal; } }); sumRows.push(a); }
-      allChart = '<div class="panel">' + debtChart(sumRows, Math.min.apply(null, withLoan.map(function (x) { return x.f.fixY; })), 'Alle Darlehen zusammen') + '</div>';
+      allChart = '<details class="panel fold" data-fold="fin-alle"' + (uiOpen('fin-alle', true) ? ' open' : '') + '><summary><h2>Alle Darlehen zusammen</h2><span class="fsum">Zinsen und Tilgung je Jahr</span></summary><div class="fbody">' + debtChart(sumRows, Math.min.apply(null, withLoan.map(function (x) { return x.f.fixY; })), '') + '</div></details>';
     }
     $('cards-fin').innerHTML = allChart + inf.map(function (x) {
       var o = x.o, f = x.f, N = Math.min(f.payoff || 30, 35);
       var plan = f.rows.slice(0, N).map(function (r) {
         return '<tr><td>' + r.y + '</td><td>' + nf(r.rate, 2) + ' %</td><td>' + eur(r.int) + '</td><td>' + eur(r.pr) + '</td><td>' + eur(r.sp) + '</td><td>' + eur(r.bal) + '</td></tr>';
       }).join('');
-      return '<div class="panel"><div class="fhead"><h2>' + esc(o.name) + '</h2>' + statusDscr(f.dscr) + '</div><div class="kpis">' +
+      var fid = 'fin-' + o.id;
+      return '<details class="panel fold" data-fold="' + fid + '"' + (uiOpen(fid, false) ? ' open' : '') + '><summary><h2>' + esc(o.name) + '</h2>' + statusDscr(f.dscr) + '<span class="fsum">Rate ' + eur(f.rateM) + ' pro Monat · Restschuld nach Bindung ' + eur(f.balFix) + ' · Zinsbindung ' + (f.fixY >= 1 ? 'bis ' + (y0 + f.fixY) : 'beendet') + '</span></summary><div class="fbody"><div class="kpis">' +
         kpi('Rate pro Monat', eur(f.rateM), 'Zinsen ' + eur(f.int1 / 12) + ' · Tilgung ' + eur(f.tilg1 / 12) + ' (Jahr 1)') +
         kpi('Sollzins', nf(o.zins, 2) + ' %', f.dis > 0 && f.effD !== null ? 'effektiv ' + nf(f.effD * 100, 2) + ' % mit Disagio' : 'effektiv ' + nf(f.eff * 100, 2) + ' % p. a.') +
         (f.dis > 0 ? kpi('Disagio', eur(f.dis), 'Auszahlung ' + eur(o.loan - f.dis) + ', Steuerabzug ' + (o.fix >= 5 ? 'in Jahr 1' : 'verteilt')) : '') +
@@ -930,7 +955,7 @@ function finInfo(o, A, S) {
         kpi('Debt Yield', pct(f.dy, 1), 'Nettomiete ÷ Darlehen') +
         kpi('Mindestauslastung', pct(f.be, 0), 'Anteil der Sollmiete, ab dem der Cashflow null ist ' + bePill(f.be)) +
         kpi('Steuer im 1. Jahr', eur(f.tax1), 'AfA ' + eur(f.afa1) + ' · Cashflow n. St. ' + eur(f.cfA / 12) + ' pro Monat') +
-        '</div>' + (o.loan > 0 ? debtChart(f.rows, f.fixY, 'Zinsen und Tilgung je Jahr') : '') + disCompare(o, f, A) + '<details class="plan"><summary>Tilgungsplan, jährlich</summary><div class="tscroll"><table><thead><tr><th>Jahr</th><th>Zinssatz</th><th>Zinsen</th><th>Tilgung</th><th>Sondertilgung</th><th>Restschuld</th></tr></thead><tbody>' + plan + '</tbody></table></div><p class="note">Basisfall: Der Zins bleibt nach der Bindung unverändert.</p></details></div>';
+        '</div>' + (o.loan > 0 ? debtChart(f.rows, f.fixY, 'Zinsen und Tilgung je Jahr') : '') + disCompare(o, f, A) + '<details class="plan"><summary>Tilgungsplan, jährlich</summary><div class="tscroll"><table><thead><tr><th>Jahr</th><th>Zinssatz</th><th>Zinsen</th><th>Tilgung</th><th>Sondertilgung</th><th>Restschuld</th></tr></thead><tbody>' + plan + '</tbody></table></div><p class="note">Basisfall: Der Zins bleibt nach der Bindung unverändert.</p></details></div></details>';
     }).join('');
   }
 
@@ -998,12 +1023,50 @@ function finInfo(o, A, S) {
     var inv = invOf(o), eq = inv - o.loan + disOf(o);
     return (o.reno > 0 ? 'Renovierung ' + eur(o.reno) + ((o.renoYear || 0) <= 0 ? ' beim Kauf, ' : ' in Jahr ' + Math.round(o.renoYear) + ', ') : '') + 'Gesamtinvestition ' + eur(inv) + ', Eigenkapital ' + eur(eq) + (disOf(o) > 0 ? ' (inkl. Disagio ' + eur(disOf(o)) + ')' : '') + ', Beleihung ' + pct(o.price > 0 ? o.loan / o.price : null, 0) + ', Miete ' + (o.area > 0 ? nf(o.rent / o.area, 2) : '–') + ' €/m²' + (o.garage > 0 ? ' plus Garage ' + eur(o.garage) + ', gesamt ' + eur(rentOf(o)) + ' pro Monat' : '') + ', Kaufpreis ' + (o.area > 0 ? eur(o.price / o.area) : '–') + '/m²';
   }
+  /* ---------- Einklappbare Bereiche ---------- */
+  var UIKEY = 'bestands-cockpit-ui-v1', UI = {};
+  try { UI = JSON.parse(localStorage.getItem(UIKEY)) || {}; } catch (e) { UI = {}; }
+  function uiOpen(id, def) { return Object.prototype.hasOwnProperty.call(UI, id) ? !!UI[id] : def; }
+  document.addEventListener('toggle', function (e) {
+    var d = e.target; if (!d || !d.getAttribute || !d.hasAttribute('data-fold')) return;
+    UI[d.getAttribute('data-fold')] = d.open; try { localStorage.setItem(UIKEY, JSON.stringify(UI)); } catch (x) {}
+  }, true);
+  var FOLD_CLOSED = { 'annahmen-fuer-alle-objekte': 1, 'finanzierungsvergleich': 1, 'aus-anderen-apps-uebernehmen': 1 };
+  var FOLD_HINT = { 'annahmen-fuer-alle-objekte': 'Mietwachstum, Kosten, Wertentwicklung, Steuersatz', 'finanzierungsvergleich': 'Bis zu drei Angebote mit Bewertung', 'aus-anderen-apps-uebernehmen': 'Renovierung und Besichtigung', 'objekte-im-ueberblick': 'Tabelle mit Status je Objekt', 'zinsbindung-und-anschlussfinanzierung': 'Raten nach Ende der Bindung' };
+  function slug(t) { return String(t).toLowerCase().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); }
+  function foldify() {
+    [].forEach.call(document.querySelectorAll('section[role="tabpanel"] > .panel'), function (pn) {
+      var h = pn.firstElementChild; if (!h || h.tagName !== 'H2' || pn.classList.contains('vz')) return;
+      var id = slug(h.textContent), det = document.createElement('details'), sm = document.createElement('summary'), body = document.createElement('div');
+      det.className = 'panel fold'; det.setAttribute('data-fold', id); if (pn.id) det.id = pn.id;
+      det.open = uiOpen(id, !FOLD_CLOSED[id]);
+      sm.appendChild(h); if (FOLD_HINT[id]) { var sp = document.createElement('span'); sp.className = 'fsum'; sp.textContent = FOLD_HINT[id]; sm.appendChild(sp); }
+      body.className = 'fbody'; while (pn.firstChild) body.appendChild(pn.firstChild);
+      det.appendChild(sm); det.appendChild(body); pn.parentNode.replaceChild(det, pn);
+    });
+    [].forEach.call(document.querySelectorAll('section[role="tabpanel"]'), function (sc) {
+      if (sc.querySelectorAll('details[data-fold]').length < 2 && sc.id !== 'p-objekte' && sc.id !== 'p-finanzierung') return;
+      var bar = document.createElement('div'); bar.className = 'foldbar';
+      bar.innerHTML = '<button type="button" class="lbtn" data-foldall="1">Alle öffnen</button><button type="button" class="lbtn" data-foldall="0">Alle schließen</button>';
+      sc.insertBefore(bar, sc.firstChild);
+    });
+  }
+  function objSum(o) { return eur(o.price) + ' · Miete ' + eur(rentOf(o)) + ' · Darlehen ' + eur(o.loan); }
+  var GROUPS = [['Objekt und Kauf', ['name', 'price', 'nk', 'area']], ['Finanzierung', ['loan', 'zins', 'tilg', 'fix', 'dis', 'fixEnd', 'sonder']], ['Miete und Kosten', ['rent', 'garage', 'nonRec', 'maint', 'vac']], ['Steuer', ['geb', 'afa']], ['Sanierung', ['reno', 'renoYear', 'renoRent']]];
+  function objFields(o) {
+    var by = {}; FIELDS.forEach(function (f) { by[f[0]] = f; });
+    return GROUPS.map(function (g) {
+      return '<div class="grp">' + g[0] + '</div><div class="fields">' + g[1].filter(function (k) { return by[k]; }).map(function (k) { return fieldHtml('obj', o.id, by[k], o[k]); }).join('') + '</div>';
+    }).join('');
+  }
+
   function renderInputs() {
     renderFvIn();
     $('assume').innerHTML = ASSUME.map(function (f) { return fieldHtml('assume', 0, f, state.assume[f[0]]); }).join('');
-    $('cards').innerHTML = state.objs.map(function (o) {
-      return '<div class="ocard"><div class="top"><h2>' + esc(o.name) + '</h2><button class="btn" data-del="' + o.id + '"' + (state.objs.length < 2 ? ' disabled' : '') + '>Entfernen</button></div><div class="fields">' +
-        FIELDS.map(function (f) { return fieldHtml('obj', o.id, f, o[f[0]]); }).join('') + '</div><div class="derived" id="dv-' + o.id + '">' + derivedText(o) + '</div></div>';
+    $('cards').innerHTML = state.objs.map(function (o, i) {
+      var fid = 'obj-' + o.id;
+      return '<details class="ocard fold" data-fold="' + fid + '"' + (uiOpen(fid, i === 0) ? ' open' : '') + '><summary><h2>' + esc(o.name) + '</h2><span class="fsum" id="fs-' + o.id + '">' + objSum(o) + '</span></summary><div class="fbody">' +
+        objFields(o) + '<div class="derived" id="dv-' + o.id + '">' + derivedText(o) + '</div><div><button class="btn" data-del="' + o.id + '"' + (state.objs.length < 2 ? ' disabled' : '') + '>Objekt entfernen</button></div></div></details>';
     }).join('');
     renFill();
   }
@@ -1019,6 +1082,7 @@ function finInfo(o, A, S) {
       o[key] = val;
       if (key === 'name') { var h = t.closest('.ocard').querySelector('h2'); if (h) h.textContent = val; }
       var dv = $('dv-' + o.id); if (dv) dv.textContent = derivedText(o);
+      var fs = $('fs-' + o.id); if (fs) fs.textContent = objSum(o);
       state.example = false;
     } else if (scope === 'assume') {
       if (key === 'horizon') val = Math.min(30, Math.max(5, Math.round(val)));
@@ -1039,6 +1103,7 @@ function finInfo(o, A, S) {
   document.addEventListener('click', function (e) {
     var b = e.target.closest ? e.target.closest('button') : null;
     if (!b) return;
+    if (b.dataset.foldall !== undefined) { [].forEach.call(b.closest('section').querySelectorAll('details[data-fold]'), function (d) { d.open = b.dataset.foldall === '1'; }); return; }
     if (b.dataset.tab) { show(b.dataset.tab); return; }
     if (b.dataset.preset !== undefined) { state.scen = Object.assign({}, PRESETS[+b.dataset.preset][1]); syncSliders(); save(); renderOutputs(); return; }
     if (b.dataset.del) {
@@ -1084,6 +1149,7 @@ function finInfo(o, A, S) {
   var rt;
   window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(renderOutputs, 150); });
 
+  foldify();
   renderInputs();
   renderScenarioControls();
   renderOutputs();
