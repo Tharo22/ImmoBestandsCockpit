@@ -56,6 +56,18 @@ details.fold.ocard>.fbody{gap:14px}
 .foldbar{display:flex;justify-content:flex-end;gap:14px;margin:-6px 0 -8px}
 .lbtn{background:none;border:0;padding:6px 2px;font:inherit;font-size:.82rem;color:var(--muted);text-decoration:underline;cursor:pointer;min-height:32px}
 .debtviz svg,#fv-out>svg{max-width:640px;margin-inline:auto}
+
+.tabs{position:static;padding-top:0}
+.stick{position:sticky;top:0;z-index:6;background:var(--bg);padding-top:6px;margin:0 -2px;padding-inline:2px}
+.strip{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center;padding:7px 2px 8px;font-size:.82rem;color:var(--muted);font-variant-numeric:tabular-nums;border-bottom:1px solid var(--line)}
+.strip b{font-family:var(--font-num);font-weight:600;color:var(--ink)}
+.strip b.neg{color:var(--bad)}
+.strip .pill{font-size:.7rem;padding:1px 7px}
+details.info{background:none;border:0;padding:0;margin-top:4px}
+details.info summary{font-size:.8rem;color:var(--muted);font-weight:400;cursor:pointer;min-height:28px;display:inline-block}
+details.info[open] summary{margin-bottom:2px}
+details.info p{font-size:.85rem;color:var(--muted);margin:0;max-width:62ch}
+#fv-out>.fvshort{margin:12px 0 4px}
 @media (prefers-reduced-motion: reduce){details.fold>summary::before{transition:none}}
 </style>
 <title>Bestands-Cockpit</title>
@@ -184,20 +196,28 @@ td.sub, th.sub { color: var(--muted); }
 <div class="wrap">
   <header>
     <h1 data-brand style="display:flex;align-items:center;gap:12px"><img src="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2264%22 height=%2264%22 viewBox=%220 0 64 64%22%3E%3Cdefs%3E%3ClinearGradient id=%22g%22 x1=%220%22 y1=%220%22 x2=%220%22 y2=%221%22%3E%3Cstop offset=%220%22 stop-color=%22%23fff%22 stop-opacity=%22.16%22/%3E%3Cstop offset=%221%22 stop-color=%22%23000%22 stop-opacity=%22.14%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width=%2264%22 height=%2264%22 rx=%2215%22 fill=%22%232E7D4F%22/%3E%3Crect width=%2264%22 height=%2264%22 rx=%2215%22 fill=%22url%28%23g%29%22/%3E%3Crect x=%2213%22 y=%2238%22 width=%229%22 height=%2213%22 rx=%222%22 fill=%22%23fff%22/%3E%3Crect x=%2227.5%22 y=%2229%22 width=%229%22 height=%2222%22 rx=%222%22 fill=%22%23fff%22/%3E%3Crect x=%2242%22 y=%2219%22 width=%229%22 height=%2232%22 rx=%222%22 fill=%22%23fff%22/%3E%3Cpath d=%22M14 27l15-9 10 5 12-11%22 fill=%22none%22 stroke=%22%23fff%22 stroke-opacity=%22.6%22 stroke-width=%223.5%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22/%3E%3C/svg%3E" width="44" height="44" alt="" style="border-radius:11px;flex:none;box-shadow:0 1px 3px rgba(0,0,0,.25)"><span>Bestands-Cockpit</span></h1>
-    <p class="sub">Cashflow, Beleihung und Stresstest für dein Mietportfolio. Rendite und Cashflow gelten vor Steuern, die Steuerwirkung steht gesondert dabei.</p>
+    <p class="sub">Cashflow, Beleihung und Stresstest für dein Mietportfolio.</p>
+    <details class="info"><summary>Hinweis zu den Zahlen</summary><p>Rendite und Cashflow gelten vor Steuern, die Steuerwirkung steht gesondert dabei. Alle Angaben sind Modellrechnungen auf Basis deiner Eingaben und der Annahmen unter Objekte.</p></details>
   </header>
 
   <div class="banner" id="banner" hidden>Das sind Beispielwerte. Miete, Zins, Hausgeld und das zweite Objekt sind Platzhalter. Trage deine Zahlen im Tab „Objekte“ ein, dann verschwindet dieser Hinweis.</div>
 
+  <div class="stick">
   <div class="tabs" role="tablist" aria-label="Bereiche">
     <button class="tab" role="tab" id="t-portfolio" aria-controls="p-portfolio" aria-selected="true" data-tab="portfolio">Portfolio</button>
     <button class="tab" role="tab" id="t-szenarien" aria-controls="p-szenarien" aria-selected="false" data-tab="szenarien">Szenarien</button>
     <button class="tab" role="tab" id="t-finanzierung" aria-controls="p-finanzierung" aria-selected="false" data-tab="finanzierung">Finanzierung</button>
     <button class="tab" role="tab" id="t-objekte" aria-controls="p-objekte" aria-selected="false" data-tab="objekte">Objekte</button>
   </div>
+    <div class="strip" id="strip" aria-label="Kurzüberblick"></div>
+  </div>
 
   <section role="tabpanel" id="p-portfolio" aria-labelledby="t-portfolio">
     <div class="kpis" id="kpi-portfolio"></div>
+    <div class="panel">
+      <h2>Weitere Kennzahlen</h2>
+      <div class="kpis" id="kpi-more"></div>
+    </div>
     <div class="panel vz" id="viz-portfolio"></div>
     <div class="panel">
       <h2>Objekte im Überblick</h2>
@@ -636,18 +656,19 @@ function finInfo(o, A, S) {
     var renoT = state.objs.reduce(function (a, o) { return a + (o.reno || 0); }, 0), renoNow = state.objs.reduce(function (a, o) { return a + ((o.renoYear || 0) <= 0 ? (o.reno || 0) : 0); }, 0), renoMieteT = state.objs.reduce(function (a, o) { return a + (o.reno > 0 ? (o.renoRent || 0) : 0); }, 0);
     var ekr = ev.eq > 0 ? (cf + pr1) / ev.eq : null, dscr = ds > 0 ? noi / ds : null;
     var repaid = loan > 0 ? 1 - ev.tot[9].bal / loan : null;
-    $('kpi-portfolio').innerHTML =
-      kpi('Cashflow pro Monat vor Steuern', eur(cf / 12), nf(cf, 0) + ' € pro Jahr', cf < 0) +
-      kpi('Cashflow pro Monat nach Steuern', eur(cfA / 12), (tax >= 0 ? 'Steuer ' : 'Erstattung ') + eur(Math.abs(tax)) + ' pro Jahr', cfA < 0) +
+    var main = kpi('Cashflow pro Monat vor Steuern', eur(cf / 12), nf(cf, 0) + ' € pro Jahr', cf < 0) +
       kpi('Nettorendite', pct(inv > 0 ? noi / inv : null), 'auf ' + eur(inv) + ' Gesamtinvestition') +
       kpi('Eigenkapitalrendite', pct(ekr), 'mit ' + eur(ev.eq) + ' Eigenkapital', ekr !== null && ekr < 0) +
-      kpi('DSCR', dscr === null ? '–' : nf(dscr, 2), 'Nettomiete ÷ Schuldendienst', dscr !== null && dscr < 1) +
+      kpi('DSCR', dscr === null ? '–' : nf(dscr, 2), 'Nettomiete ÷ Schuldendienst', dscr !== null && dscr < 1);
+    var more = kpi('Cashflow pro Monat nach Steuern', eur(cfA / 12), (tax >= 0 ? 'Steuer ' : 'Erstattung ') + eur(Math.abs(tax)) + ' pro Jahr', cfA < 0) +
       kpi('Beleihungsauslauf', pct(price > 0 ? loan / price : null, 0), 'Darlehen ÷ Kaufpreis') +
       kpi('Kaufpreisfaktor', rentY > 0 ? nf(price / rentY, 1) + '×' : '–', 'Kaufpreis ÷ Jahreskaltmiete') +
       kpi('Restschuld', eur(ev.tot[0].bal), 'nach Jahr 1, Start ' + eur(loan)) +
       kpi('Getilgt nach 10 Jahren', pct(repaid, 0), 'Restschuld ' + eur(ev.tot[9].bal)) +
       kpi('Vermögen im Bestand', eur(price - loan), 'Marktwert minus Darlehen, heute') +
       (renoT > 0 ? kpi('Renovierung und Sanierung', eur(renoT), 'davon beim Kauf ' + eur(renoNow) + (renoMieteT > 0 ? ', Mehrmiete ' + eur(renoMieteT) + ' pro Monat' : '')) : '');
+    $('kpi-portfolio').innerHTML = main; $('kpi-more').innerHTML = more;
+    $('strip').innerHTML = '<span>Cashflow <b class="' + (cf < 0 ? 'neg' : '') + '">' + eur(cf / 12) + '</b> pro Monat</span><span>DSCR <b class="' + (dscr !== null && dscr < 1 ? 'neg' : '') + '">' + (dscr === null ? '–' : nf(dscr, 2)) + '</b> ' + statusDscr(dscr) + '</span>';
     vizPortfolio(ev, ks, inv, loan);
     var rows = ev.per.map(function (p, i) {
       var k = ks[i], o = p.o;
@@ -799,6 +820,8 @@ function finInfo(o, A, S) {
     return g;
   }
   function fvPill(v, t) { return '<span class="pill ' + (v === 2 ? 'good' : v === 1 ? 'warn' : 'bad') + '">' + (v === 2 ? '✓ ' : v === 1 ? '! ' : '✕ ') + t + '</span>'; }
+  var fvSeries = null;
+  function fvDraw() { var c = $('ch-fv'); if (c && fvSeries && c.clientWidth > 0) chart(c, fvSeries, 0, true); }
   function renderFvOut() {
     var el = $('fv-out'); if (!el) return;
     var R = fvCalc(), act = R.act;
@@ -899,8 +922,20 @@ function finInfo(o, A, S) {
       '<p class="note">Orientierung, keine Finanzierungs- oder Steuerberatung. Nicht enthalten sind Bereitstellungszinsen, Kontoführungsgebühren, Vorfälligkeitsentschädigung und die Wirkung der Steuerprogression. Gewinn und Rendite rechnen mit den Annahmen aus dem Reiter Szenarien (Mietsteigerung, Kostensteigerung, Wertsteigerung, Verkaufskosten) und einem Verkauf nach ' + R.T + ' Jahren. Die Wertsteigerung ist bei allen Angeboten gleich (' + sgn(R.wert) + '). Die Punkte gewichten Effektivzins, Vermögensaufbau und Rendite am stärksten.' + (act.some(function (a) { return a.man; }) ? ' Manuell eingegebene Effektivzinsen gehen so in die Bewertung ein. Die Kosten in Euro stammen weiterhin aus dem Tilgungsplan mit dem Sollzins.' : '') + '</p>';
     var legend = '<div class="legend" style="margin-top:6px">' + act.map(function (a) { return '<span><i class="sw" style="border-top-color:var(--c' + (a.i + 1) + ')"></i>' + esc(a.name) + '</span>'; }).join('') + '</div>';
     var gchart = '<h2 style="margin-top:14px">Gewinn nach EK-Einsatz, kumuliert</h2><svg class="chart" id="ch-fv" role="img" aria-label="' + esc('Gewinn nach Eigenkapitaleinsatz über ' + R.T + ' Jahre: ' + act.map(function (a) { return a.name + ' ' + sgn(a.gain); }).join(', ')) + '"></svg>' + legend + '<p class="note">Marktwert minus Restschuld minus Eigenkapital und Sondertilgungen, plus kumulierter Cashflow nach Steuern. Vor Verkaufskosten. Jahr 0 zeigt die Anfangskosten (Nebenkosten, Disagio).</p>';
-    el.innerHTML = tbl + rate + bars + gchart + rec;
-    chart($('ch-fv'), act.map(function (a) { return { v: a.gains, c: 'FV' + (a.i + 1) }; }), 0, true);
+    var shortT = '<div class="tscroll fvshort"><table class="dcmp fvt"><thead>' + head + '</thead><tbody>' +
+      row('Eigenkapital', function (a) { return eur(a.ek); }) +
+      row('Rate pro Monat', function (a) { return eur(a.rateM); }) +
+      row('<b>Effektivzins p.a.</b>', function (a) { return '<b>' + (a.eff === null ? '–' : nf(a.eff * 100, 2) + ' %') + '</b>' + (a.man ? '<br><small style="color:var(--muted)">manuell</small>' : ''); }) +
+      row('Kosten nach Steuer, ' + R.T + ' J.', function (a) { return eur(a.costNet); }) +
+      row('Cashflow v. St. Ø / Mon.', function (a) { return sgn(a.avgCfV); }) +
+      row('Gewinn nach EK-Einsatz', function (a) { return sgn(a.gain); }) +
+      row('EK-Rendite p.a. (IRR)', function (a) { return a.irr === null ? '–' : nf(a.irr * 100, 1) + ' %'; }) +
+      row('<b>Punkte</b>', function (a) { return '<b>' + a.g.score + ' von 34</b>'; }) +
+      '</tbody></table></div>';
+    var detail = '<details class="fold" id="fv-detail" data-fold="fv-detail"' + (uiOpen('fv-detail', false) ? ' open' : '') + '><summary><h2>Alle Details</h2><span class="fsum">Vollständige Tabelle, Bewertung und Diagramme</span></summary><div class="fbody">' + tbl + rate + bars + gchart + '</div></details>';
+    fvSeries = act.map(function (a) { return { v: a.gains, c: 'FV' + (a.i + 1) }; });
+    el.innerHTML = rec + shortT + detail;
+    fvDraw();
   }
 
   function renderFinanz() {
@@ -1029,10 +1064,10 @@ function finInfo(o, A, S) {
   function uiOpen(id, def) { return Object.prototype.hasOwnProperty.call(UI, id) ? !!UI[id] : def; }
   document.addEventListener('toggle', function (e) {
     var d = e.target; if (!d || !d.getAttribute || !d.hasAttribute('data-fold')) return;
-    UI[d.getAttribute('data-fold')] = d.open; try { localStorage.setItem(UIKEY, JSON.stringify(UI)); } catch (x) {}
+    UI[d.getAttribute('data-fold')] = d.open; if (d.id === 'fv-detail' && d.open) fvDraw(); try { localStorage.setItem(UIKEY, JSON.stringify(UI)); } catch (x) {}
   }, true);
-  var FOLD_CLOSED = { 'annahmen-fuer-alle-objekte': 1, 'finanzierungsvergleich': 1, 'aus-anderen-apps-uebernehmen': 1 };
-  var FOLD_HINT = { 'annahmen-fuer-alle-objekte': 'Mietwachstum, Kosten, Wertentwicklung, Steuersatz', 'finanzierungsvergleich': 'Bis zu drei Angebote mit Bewertung', 'aus-anderen-apps-uebernehmen': 'Renovierung und Besichtigung', 'objekte-im-ueberblick': 'Tabelle mit Status je Objekt', 'zinsbindung-und-anschlussfinanzierung': 'Raten nach Ende der Bindung' };
+  var FOLD_CLOSED = { 'weitere-kennzahlen': 1, 'annahmen-fuer-alle-objekte': 1, 'finanzierungsvergleich': 1, 'aus-anderen-apps-uebernehmen': 1 };
+  var FOLD_HINT = { 'annahmen-fuer-alle-objekte': 'Mietwachstum, Kosten, Wertentwicklung, Steuersatz', 'finanzierungsvergleich': 'Bis zu drei Angebote mit Bewertung', 'aus-anderen-apps-uebernehmen': 'Renovierung und Besichtigung', 'objekte-im-ueberblick': 'Tabelle mit Status je Objekt', 'weitere-kennzahlen': 'Nettorendite, Beleihung, Restschuld, Kaufpreisfaktor und mehr', 'zinsbindung-und-anschlussfinanzierung': 'Raten nach Ende der Bindung' };
   function slug(t) { return String(t).toLowerCase().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); }
   function foldify() {
     [].forEach.call(document.querySelectorAll('section[role="tabpanel"] > .panel'), function (pn) {
